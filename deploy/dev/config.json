@@ -1,0 +1,18 @@
+{
+  "environment": "dev",
+  "workspaceId": "PUT-YOUR-DEV-WORKSPACE-ID-HERE",
+  "workspaceName": "[DEV] Vendas",
+  "servicePrincipalId": "${PBI_SP_DEV_CLIENT_ID}",
+  "refreshPolicy": {
+    "type": "on-demand",
+    "schedule": null,
+    "maxRetries": 3
+  },
+  "approvers": [
+    "lider-tecnico@empresa.com"
+  ],
+  "alerts": {
+    "teams": "https://outlook.office.com/webhook/PLACEHOLDER",
+    "emailOnFailure": ["oncall-bi@empresa.com"]
+  }
+}

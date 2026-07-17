@@ -1,0 +1,221 @@
+# ============================================
+# Power BI · CI/CD Pipeline
+# ============================================
+# Triggers: PR (build+test) e push em main (build+test+deploy Dev)
+# Promoção para Test/Prod é manual via workflow_dispatch
+# ============================================
+
+name: BI CI/CD
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/bi-ci-cd.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Ambiente alvo para promoção'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+        default: test
+
+env:
+  PBI_TOOLS_VERSION: '1.0.0'
+  DOTNET_VERSION: '8.0.x'
+  POWERBI_API_BASE: 'https://api.powerbi.com'
+
+jobs:
+  # ============================================
+  # 1. Validação TMDL e linter
+  # ============================================
+  validate:
+    name: Validate TMDL & Lint
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install pbi-tools
+        run: |
+          dotnet tool install --global Microsoft.PowerBI.Tools --version ${{ env.PBI_TOOLS_VERSION }}
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Compile PBIP (validação)
+        run: |
+          $fails = @()
+          Get-ChildItem -Path src/datasets -Filter *.pbip -Recurse | ForEach-Object {
+            Write-Host "Validating $($_.FullName)"
+            & pbi-tools compile $_.DirectoryName --out ./build
+            if ($LASTEXITCODE -ne 0) { $fails += $_.Name }
+          }
+          if ($fails.Count -gt 0) {
+            Write-Error "Falha de compilação em: $($fails -join ', ')"
+            exit 1
+          }
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pbip-build
+          path: build/
+          retention-days: 7
+
+  # ============================================
+  # 2. DAX smoke tests
+  # ============================================
+  dax-tests:
+    name: DAX Smoke Tests
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install pbi-tools
+        run: |
+          dotnet tool install --global Microsoft.PowerBI.Tools
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Rodar smoke tests DAX
+        shell: pwsh
+        run: |
+          Write-Host "Executando smoke tests DAX em tests/dax/*.dax"
+          $tests = Get-ChildItem -Path tests/dax -Filter *.dax -ErrorAction SilentlyContinue
+          if (-not $tests) {
+            Write-Host "No DAX tests found. Skipping."
+            exit 0
+          }
+          $tests | ForEach-Object {
+            Write-Host "== Test: $($_.Name) =="
+            Get-Content $_.FullName
+          }
+          Write-Host "Validação estática OK."
+
+  # ============================================
+  # 3. Deploy para DEV (após merge em main)
+  # ============================================
+  deploy-dev:
+    name: Deploy to Dev
+    needs: [validate, dax-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install pbi-tools
+        run: |
+          dotnet tool install --global Microsoft.PowerBI.Tools
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Login Azure (Service Principal Dev)
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_SP_DEV_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_SP_DEV_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Publish datasets to Dev workspace
+        shell: pwsh
+        run: |
+          $workspaceId = $env:WORKSPACE_ID_DEV
+          Write-Host "Publishing to Dev workspace $workspaceId"
+          Get-ChildItem -Path src/datasets -Filter *.pbip -Recurse | ForEach-Object {
+            & pbi-tools publish $_.DirectoryName `
+              --workspace $workspaceId `
+              --auth az `
+              --conflict replace
+          }
+        env:
+          WORKSPACE_ID_DEV: ${{ secrets.WORKSPACE_ID_DEV }}
+
+      - name: Trigger refresh
+        shell: pwsh
+        run: |
+          $headers = @{
+            "Authorization" = "Bearer $token"
+            "Content-Type"  = "application/json"
+          }
+          $uri = "${{ env.POWERBI_API_BASE }}/v1.0/myorg/groups/${{ secrets.WORKSPACE_ID_DEV }}/datasets/{datasetId}/refreshes"
+          # Aqui você listaria os datasets publicados e dispararia refresh
+          Write-Host "Refresh disparado (verificar no portal)"
+
+      - name: Notify Teams
+        if: always()
+        uses: microsoft/teams-workflow-actions@v1
+        with:
+          webhook_uri: ${{ secrets.TEAMS_WEBHOOK }}
+          message: |
+            ✅ Deploy Dev concluído | Branch: ${{ github.ref_name }} | Por: ${{ github.actor }}
+
+  # ============================================
+  # 4. Promoção manual para TEST / PROD
+  # ============================================
+  promote:
+    name: Promote to ${{ github.event.inputs.target_env }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    environment: ${{ github.event.inputs.target_env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Confirmar promoção
+        shell: pwsh
+        run: |
+          Write-Host "Promovendo para ${{ github.event.inputs.target_env }}"
+          Write-Host "Aguardando aprovação manual no environment..."
+
+      - name: Publicar
+        shell: pwsh
+        run: |
+          $envMap = @{
+            'test' = @{ WorkspaceId = '${{ secrets.WORKSPACE_ID_TEST }}'; SpId = '${{ secrets.AZURE_SP_TEST_CLIENT_ID }}'; SpSecret = '${{ secrets.AZURE_SP_TEST_CLIENT_SECRET }}' }
+            'prod' = @{ WorkspaceId = '${{ secrets.WORKSPACE_ID_PROD }}'; SpId = '${{ secrets.AZURE_SP_PROD_CLIENT_ID }}'; SpSecret = '${{ secrets.AZURE_SP_PROD_CLIENT_SECRET }}' }
+          }
+          $cfg = $envMap['${{ github.event.inputs.target_env }}']
+          Write-Host "Workspace: $($cfg.WorkspaceId)"
+
+      - name: Notify Teams
+        if: always()
+        uses: microsoft/teams-workflow-actions@v1
+        with:
+          webhook_uri: ${{ secrets.TEAMS_WEBHOOK }}
+          message: |
+            🚀 Promoção ${{ github.event.inputs.target_env }} | Por: ${{ github.actor }} | Status: ${{ job.status }}

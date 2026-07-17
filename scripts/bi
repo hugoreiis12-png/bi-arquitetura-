@@ -1,0 +1,484 @@
+#!/usr/bin/env python3
+"""bi — CLI unificada pra desenvolvimento de BI com AI.
+
+Wrapper sobre o MCP server, ORM SDK, e scripts de operação.
+
+Uso:
+    bi extract --workspace "bi-vendas-prod" --dataset "Vendas.Dataset"
+    bi validate dax measure.dax --measure-name "Vendas.Ticket Médio"
+    bi ask "qual a estrutura de d_cliente?"
+    bi deploy --pr 127 --env test
+    bi token issue --action deploy_prod --target "PR#127"
+    bi review --pr 127
+    bi status
+    bi doctor
+
+Variáveis de ambiente:
+    PBI_TENANT_ID
+    PBI_SP_CLIENT_ID
+    PBI_SP_CLIENT_SECRET
+    BI_REPO_ROOT (default: diretório atual)
+    BI_MCP_URL (default: detecta automaticamente)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+# Cores para output
+class C:
+    G = "\033[92m"  # green
+    Y = "\033[93m"  # yellow
+    R = "\033[91m"  # red
+    B = "\033[94m"  # blue
+    CY = "\033[96m"  # cyan
+    M = "\033[95m"  # magenta
+    DIM = "\033[90m"  # dim
+    BOLD = "\033[1m"
+    END = "\033[0m"
+
+
+def info(msg: str) -> None:
+    print(f"{C.CY}ℹ{C.END} {msg}")
+
+
+def success(msg: str) -> None:
+    print(f"{C.G}✓{C.END} {msg}")
+
+
+def warn(msg: str) -> None:
+    print(f"{C.Y}⚠{C.END} {msg}")
+
+
+def error(msg: str) -> None:
+    print(f"{C.R}✗{C.END} {msg}")
+
+
+def header(msg: str) -> None:
+    print(f"\n{C.BOLD}{C.B}━━━ {msg} ━━━{C.END}")
+
+
+# =================== Commands ===================
+
+
+def cmd_extract(args) -> int:
+    """Extract dataset from Power BI to local structure."""
+    header("Extracting dataset from Power BI")
+    info(f"Workspace: {args.workspace}")
+    info(f"Dataset:   {args.dataset}")
+    info(f"Output:    {args.output}")
+
+    script = Path(__file__).parent / "extract" / "extract_from_powerbi.py"
+    if not script.exists():
+        error(f"Script not found: {script}")
+        return 1
+
+    cmd = [
+        sys.executable,
+        str(script),
+        "--workspace", args.workspace,
+        "--dataset", args.dataset,
+        "--output", args.output,
+    ]
+    if args.generate_docs:
+        cmd.append("--generate-docs")
+    if args.git_commit:
+        cmd.append("--git-commit")
+
+    return subprocess.call(cmd)
+
+
+def cmd_validate(args) -> int:
+    """Validate a DAX file."""
+    header("Validating DAX")
+
+    file_path = Path(args.file)
+    if not file_path.exists():
+        error(f"File not found: {file_path}")
+        return 1
+
+    dax_code = file_path.read_text(encoding="utf-8")
+
+    try:
+        # Try to import the validator
+        sys.path.insert(0, str(Path(__file__).parent.parent / "mcp" / "powerbi-mcp-server" / "src"))
+        from powerbi_mcp.validation import DAXValidator
+    except ImportError:
+        warn("Could not import validator from MCP server. Using basic syntax check.")
+        # Basic check
+        if dax_code.count("(") != dax_code.count(")"):
+            error("Unbalanced parentheses")
+            return 1
+        success("Basic syntax check passed (install MCP server for full validation)")
+        return 0
+
+    validator = DAXValidator()
+    result = validator.validate(dax_code, measure_name=args.measure_name)
+    print(result.to_markdown())
+    return 0 if result.is_valid else 1
+
+
+def cmd_ask(args) -> int:
+    """Send a question to the AI via MCP."""
+    header("Asking AI")
+    print(f"{C.B}Question:{C.END} {args.question}\n")
+
+    # Try to call the MCP server
+    mcp_url = os.environ.get("BI_MCP_URL", "http://localhost:8000")
+
+    try:
+        import httpx
+
+        with httpx.Client(timeout=60) as client:
+            resp = client.post(
+                f"{mcp_url}/mcp/v1/tools/call",
+                json={
+                    "name": "pbi_search_dictionary",
+                    "arguments": {"query": args.question, "top_k": 3},
+                },
+                headers={"Authorization": f"Bearer {os.environ.get('BI_MCP_TOKEN', '')}"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                print(json.dumps(data, indent=2, ensure_ascii=False))
+                return 0
+    except Exception as e:
+        warn(f"MCP server not reachable: {e}")
+        info("Tip: start the MCP server with `bi server start` or `powerbi-mcp --http`")
+
+    # Fallback: just print the question and remind user
+    print(f"{C.DIM}(Configure BI_MCP_URL to enable AI responses){C.END}")
+    return 0
+
+
+def cmd_token_issue(args) -> int:
+    """Issue an approval token for a critical action."""
+    header("Issuing approval token")
+    info(f"Action: {args.action}")
+    info(f"Target: {args.target}")
+    info(f"User:   {args.user_id}")
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "powerbi_mcp.cli",
+        "token",
+        "issue",
+        "--action", args.action,
+        "--target", args.target,
+        "--user-id", args.user_id,
+    ]
+    if args.reason:
+        cmd.extend(["--reason", args.reason])
+
+    return subprocess.call(cmd)
+
+
+def cmd_token_approve(args) -> int:
+    """Approve an approval token."""
+    header("Approving token")
+    info(f"Token:    {args.token}")
+    info(f"Approver: {args.approver_id}")
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "powerbi_mcp.cli",
+        "token",
+        "approve",
+        "--token", args.token,
+        "--approver-id", args.approver_id,
+    ]
+    return subprocess.call(cmd)
+
+
+def cmd_deploy(args) -> int:
+    """Deploy a PR to a target environment."""
+    header(f"Deploying PR #{args.pr} to {args.env}")
+
+    if args.env == "prod":
+        warn("Production deployment requires 2 approvers and an approval token.")
+        token = input("Enter approval token (or Ctrl+C to abort): ").strip()
+        if not token:
+            error("Approval token required for production deploy")
+            return 1
+        info(f"Using token: {token[:14]}...")
+
+    # In production, this would call the deployment pipeline
+    info(f"Would deploy PR #{args.pr} to {args.env} workspace")
+    info("In production, this triggers the deployment pipeline via REST API")
+    return 0
+
+
+def cmd_review(args) -> int:
+    """Trigger AI review of a PR."""
+    header(f"Reviewing PR #{args.pr}")
+    info("Asking AI to review the PR...")
+
+    # In production, this would call the MCP server with the review_prompt
+    info("Use this command in your MCP client (Cline/Continue) to get full AI review:")
+    print(f"""
+    {C.DIM}Human: "Revisa o PR #{args.pr} e me dá um overview do que mudou,
+           se a DAX tá boa, e se passa nos smoke tests."{C.END}
+    """)
+    return 0
+
+
+def cmd_status(args) -> int:
+    """Show project status."""
+    header("Project Status")
+
+    cwd = Path.cwd()
+
+    # Check if we're in a BI repo
+    git_dir = cwd / ".git"
+    if not git_dir.exists():
+        warn("Not a git repository")
+    else:
+        success(f"Git repo: {cwd}")
+
+        # Last commit
+        try:
+            result = subprocess.run(
+                ["git", "log", "-1", "--oneline"],
+                capture_output=True, text=True, check=True,
+            )
+            print(f"  Last commit: {result.stdout.strip()}")
+        except subprocess.CalledProcessError:
+            pass
+
+        # Current branch
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                capture_output=True, text=True, check=True,
+            )
+            print(f"  Branch:      {result.stdout.strip()}")
+        except subprocess.CalledProcessError:
+            pass
+
+        # Uncommitted changes
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, check=True,
+            )
+            if result.stdout.strip():
+                warn(f"  Uncommitted: {len(result.stdout.strip().splitlines())} files")
+            else:
+                success("  Working tree clean")
+        except subprocess.CalledProcessError:
+            pass
+
+    # Check for MCP server
+    mcp_url = os.environ.get("BI_MCP_URL", "http://localhost:8000")
+    try:
+        import httpx
+        with httpx.Client(timeout=5) as client:
+            resp = client.get(f"{mcp_url}/health")
+            if resp.status_code == 200:
+                success(f"MCP server: {mcp_url} (healthy)")
+            else:
+                warn(f"MCP server: {mcp_url} (unhealthy: {resp.status_code})")
+    except Exception:
+        warn(f"MCP server: not reachable at {mcp_url}")
+
+    # Check env vars
+    print()
+    info("Environment:")
+    for var in ["PBI_TENANT_ID", "PBI_SP_CLIENT_ID", "PBI_WORKSPACE_DEV_ID"]:
+        if os.environ.get(var):
+            success(f"  {var}: set")
+        else:
+            warn(f"  {var}: not set")
+
+    return 0
+
+
+def cmd_doctor(args) -> int:
+    """Run diagnostics on the BI environment."""
+    header("Running diagnostics")
+
+    issues = 0
+
+    # Python version
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    if sys.version_info >= (3, 11):
+        success(f"Python {py_version}")
+    else:
+        error(f"Python {py_version} (need 3.11+)")
+        issues += 1
+
+    # Required tools
+    tools = {
+        "git": "git --version",
+        "docker": "docker --version",
+        "pbi-tools": "pbi-tools --version",
+        "gh": "gh --version",
+    }
+
+    print()
+    info("Required tools:")
+    for tool, cmd in tools.items():
+        try:
+            result = subprocess.run(cmd.split(), capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                version = result.stdout.strip().split("\n")[0][:50]
+                success(f"  {tool}: {version}")
+            else:
+                warn(f"  {tool}: not working (exit {result.returncode})")
+                issues += 1
+        except FileNotFoundError:
+            warn(f"  {tool}: not installed")
+            issues += 1
+        except subprocess.TimeoutExpired:
+            warn(f"  {tool}: timeout")
+            issues += 1
+
+    # Power BI credentials
+    print()
+    info("Power BI credentials:")
+    for var in ["PBI_TENANT_ID", "PBI_SP_CLIENT_ID", "PBI_SP_CLIENT_SECRET"]:
+        if os.environ.get(var):
+            success(f"  {var}: set")
+        else:
+            warn(f"  {var}: NOT SET")
+            issues += 1
+
+    # Project structure
+    print()
+    info("Project structure:")
+    cwd = Path.cwd()
+    for path in ["src/datasets", "tests", "scripts", "docs", ".vscode/mcp.json"]:
+        if (cwd / path).exists():
+            success(f"  {path}")
+        else:
+            warn(f"  {path}: missing (optional)")
+
+    # Summary
+    print()
+    if issues == 0:
+        success("All checks passed! ✨")
+        return 0
+    else:
+        warn(f"{issues} issue(s) found")
+        return 1
+
+
+def cmd_server(args) -> int:
+    """Manage the MCP server."""
+    if args.server_command == "start":
+        header("Starting MCP server")
+        info("Mode: HTTP (for dev)")
+        return subprocess.call([
+            sys.executable, "-m", "powerbi_mcp.server", "--http",
+        ])
+    elif args.server_command == "logs":
+        return subprocess.call(["docker", "logs", "-f", "powerbi-mcp"])
+    elif args.server_command == "stop":
+        return subprocess.call(["docker", "stop", "powerbi-mcp"])
+    else:
+        error(f"Unknown server command: {args.server_command}")
+        return 1
+
+
+# =================== Main ===================
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="bi",
+        description="BI CLI — wrapper para MCP server, ORM e scripts",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemplos:
+  bi extract --workspace "bi-vendas-prod" --dataset "Vendas.Dataset" --generate-docs
+  bi validate dax measure.dax --measure-name "Vendas.Ticket Médio"
+  bi ask "qual a estrutura de d_cliente?"
+  bi deploy --pr 127 --env test
+  bi token issue --action deploy_prod --target "PR#127" --reason "Hotfix"
+  bi status
+  bi doctor
+
+Para usar como AI agent, abra o VSCode e use Cline/Continue com o MCP server.
+        """,
+    )
+
+    sub = parser.add_subparsers(dest="command", required=True, help="Comando")
+
+    # extract
+    p = sub.add_parser("extract", help="Extrai dataset do Power BI pra IDE")
+    p.add_argument("--workspace", required=True, help="Workspace ID ou nome")
+    p.add_argument("--dataset", required=True, help="Dataset ID ou nome")
+    p.add_argument("--output", default="./src/datasets", help="Diretório de saída")
+    p.add_argument("--generate-docs", action="store_true", help="Gerar README, overview, data-dict")
+    p.add_argument("--git-commit", action="store_true", help="Criar commit inicial")
+    p.set_defaults(func=cmd_extract)
+
+    # validate
+    p = sub.add_parser("validate", help="Valida DAX")
+    p.add_argument("type", choices=["dax"], help="Tipo de validação")
+    p.add_argument("file", help="Arquivo DAX")
+    p.add_argument("--measure-name", help="Nome da medida (para naming convention)")
+    p.set_defaults(func=cmd_validate)
+
+    # ask
+    p = sub.add_parser("ask", help="Pergunta algo ao AI")
+    p.add_argument("question", help="Pergunta em linguagem natural")
+    p.set_defaults(func=cmd_ask)
+
+    # deploy
+    p = sub.add_parser("deploy", help="Deploy PR pra ambiente")
+    p.add_argument("--pr", type=int, required=True, help="Número do PR")
+    p.add_argument("--env", choices=["dev", "test", "prod"], required=True, help="Ambiente alvo")
+    p.set_defaults(func=cmd_deploy)
+
+    # token
+    p = sub.add_parser("token", help="Gerencia approval tokens")
+    sub_token = p.add_subparsers(dest="subcommand", required=True)
+
+    p_issue = sub_token.add_parser("issue", help="Emite novo token")
+    p_issue.add_argument("--action", required=True, help="Ação (deploy_test, deploy_prod, etc)")
+    p_issue.add_argument("--target", required=True, help="Alvo (PR#127, etc)")
+    p_issue.add_argument("--user-id", default=os.environ.get("USER", "dev"), help="Seu user ID")
+    p_issue.add_argument("--reason", help="Justificativa")
+    p_issue.set_defaults(func=cmd_token_issue)
+
+    p_approve = sub_token.add_parser("approve", help="Aprova um token")
+    p_approve.add_argument("--token", required=True)
+    p_approve.add_argument("--approver-id", required=True)
+    p_approve.set_defaults(func=cmd_token_approve)
+
+    # review
+    p = sub.add_parser("review", help="AI review de um PR")
+    p.add_argument("--pr", type=int, required=True)
+    p.set_defaults(func=cmd_review)
+
+    # status
+    p = sub.add_parser("status", help="Status do projeto")
+    p.set_defaults(func=cmd_status)
+
+    # doctor
+    p = sub.add_parser("doctor", help="Diagnóstico do ambiente")
+    p.set_defaults(func=cmd_doctor)
+
+    # server
+    p = sub.add_parser("server", help="Gerencia MCP server")
+    sub_server = p.add_subparsers(dest="server_command", required=True)
+    sub_server.add_parser("start", help="Inicia o MCP server")
+    p_logs = sub_server.add_parser("logs", help="Mostra logs do server (Docker)")
+    p_stop = sub_server.add_parser("stop", help="Para o MCP server (Docker)")
+    p.set_defaults(func=cmd_server)
+
+    args = parser.parse_args()
+    sys.exit(args.func(args))
+
+
+if __name__ == "__main__":
+    main()

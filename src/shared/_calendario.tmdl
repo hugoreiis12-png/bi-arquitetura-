@@ -1,0 +1,110 @@
+/// Modelo de calendário compartilhado entre datasets
+/// Range: 2018-01-01 a 2030-12-31 (configurável em `dt_inicio` / `dt_fim`)
+///
+/// Inclusão em um dataset:
+///   1. Copie este arquivo para `<Dataset>/definition/tables/d_calendario.tmdl`
+///   2. Adicione relacionamento: `d_calendario[date]` → `f_*[dt_*]`
+///   3. Marque como `isHidden = true` se não quiser expor no painel
+
+createOrReplace
+
+table 'd_calendario'
+    lineageTag: shared-calendario
+    description: 'Calendário compartilhado (range 2018-2030, ano fiscal abril-março)'
+
+    column date
+        dataType: dateTime
+        formatString: 'yyyy-mm-dd'
+        lineageTag: shared-calendario-date
+        summarizeBy: none
+        sourceColumn: date
+
+        annotation SummarizationSetBy = Automatic
+
+    column ano
+        dataType: int64
+        formatString: 0
+        lineageTag: shared-calendario-ano
+        summarizeBy: none
+        sourceColumn: ano
+
+        annotation SummarizationSetBy = Automatic
+
+    column mes
+        dataType: int64
+        formatString: 0
+        lineageTag: shared-calendario-mes
+        summarizeBy: none
+        sourceColumn: mes
+
+        annotation SummarizationSetBy = Automatic
+
+    column trimestre
+        dataType: int64
+        formatString: 0
+        lineageTag: shared-calendario-trimestre
+        summarizeBy: none
+        sourceColumn: trimestre
+
+        annotation SummarizationSetBy = Automatic
+
+    column semestre
+        dataType: int64
+        formatString: 0
+        lineageTag: shared-calendario-semestre
+        summarizeBy: none
+        sourceColumn: semestre
+
+        annotation SummarizationSetBy = Automatic
+
+    column ano_mes
+        dataType: string
+        lineageTag: shared-calendario-ano_mes
+        summarizeBy: none
+        sourceColumn: ano_mes
+
+        annotation SummarizationSetBy = Automatic
+
+    column dt_fiscal_ano_inicio
+        dataType: dateTime
+        formatString: 'yyyy-mm-dd'
+        lineageTag: shared-calendario-fiscal-inicio
+        summarizeBy: none
+        sourceColumn: dt_fiscal_ano_inicio
+
+        annotation SummarizationSetBy = Automatic
+
+    column flg_fim_de_semana
+        dataType: boolean
+        formatString: '"TRUE";"TRUE";"FALSE"'
+        lineageTag: shared-calendario-fds
+        summarizeBy: none
+        sourceColumn: flg_fim_de_semana
+
+        annotation SummarizationSetBy = Automatic
+
+    partition d_calendario-d46f = m
+        mode: import
+        source =
+                let
+                    dtInicio = #date(2018, 1, 1),
+                    dtFim    = #date(2030, 12, 31),
+                    nDias    = Duration.Days(dtFim - dtInicio) + 1,
+                    datas    = List.Dates(dtInicio, nDias, #duration(1, 0, 0, 0)),
+                    tbl      = Table.FromList(datas, Splitter.SplitByNothing(), {"date"}, null, ExtraValues.Error),
+                    #"Tipo"  = Table.TransformColumnTypes(tbl, {{"date", type date}}),
+                    #"Ano"   = Table.AddColumn(#"Tipo", "ano", each Date.Year([date]), Int64.Type),
+                    #"Mes"   = Table.AddColumn(#"Ano", "mes", each Date.Month([date]), Int64.Type),
+                    #"Trim"  = Table.AddColumn(#"Mes", "trimestre", each Date.QuarterOfYear([date]), Int64.Type),
+                    #"Sem"   = Table.AddColumn(#"Trim", "semestre", each if Date.Month([date]) <= 6 then 1 else 2, Int64.Type),
+                    #"AM"    = Table.AddColumn(#"Sem", "ano_mes", each Text.From([ano]) & "-" & Text.PadStart(Text.From([mes]), 2, "0")),
+                    #"Fisc"  = Table.AddColumn(#"AM", "dt_fiscal_ano_inicio", each
+                                if Date.Month([date]) >= 4
+                                then #date(Date.Year([date]), 4, 1)
+                                else #date(Date.Year([date]) - 1, 4, 1), type date),
+                    #"Fds"   = Table.AddColumn(#"Fisc", "flg_fim_de_semana", each Date.DayOfWeek([date]) >= 5, Logical.Type)
+                in
+                    #"Fds"
+
+    annotation PBI_NavigationStepName = Navigation
+    annotation PBI_ResultType = Table

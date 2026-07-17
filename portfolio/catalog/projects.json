@@ -1,0 +1,127 @@
+{
+  "//": "Catálogo central de projetos BI. Atualizar em todo PR de criação/encerramento de projeto.",
+  "//": "Esquema versionado. v1 = schema inicial.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "lastUpdated": "2026-07-15",
+  "owner": "steward-bi@empresa.com",
+  "projects": [
+    {
+      "id": "bi-vendas",
+      "name": "Vendas",
+      "description": "Dashboard comercial B2B — receita, margem, ticket médio, metas",
+      "repo": "https://github.com/org/bi-vendas",
+      "template": "https://github.com/org/bi-template",
+      "sharedLibraryRef": null,
+      "domains": ["comercial", "financeiro"],
+      "environments": {
+        "dev":   { "workspaceId": "xxx-dev",   "spAlias": "PBI_SP_DEV" },
+        "test":  { "workspaceId": "xxx-test",  "spAlias": "PBI_SP_TEST" },
+        "prod":  { "workspaceId": "xxx-prod",  "spAlias": "PBI_SP_PROD" }
+      },
+      "stakeholders": {
+        "owner":      "gerente-comercial@empresa.com",
+        "steward":    "steward-dados@empresa.com",
+        "techLead":   "lider-tecnico@empresa.com",
+        "qa":         "qa-lead@empresa.com"
+      },
+      "rlsRoles": ["Gerente Regional", "Vendedor", "Auditor"],
+      "refreshPolicy": "scheduled",
+      "refreshSchedule": "0 6 * * *",
+      "currentVersion": "1.4.0",
+      "lastDeploy": "2026-07-10T08:30:00Z",
+      "lastDeployBy": "deploy-bot",
+      "status": "active",
+      "tags": ["tier-1", "pbi-premium", "fato-vendas"]
+    },
+    {
+      "id": "bi-estoque",
+      "name": "Estoque",
+      "description": "Giro de estoque, cobertura, ruptura, aging",
+      "repo": "https://github.com/org/bi-estoque",
+      "template": "https://github.com/org/bi-template",
+      "sharedLibraryRef": null,
+      "domains": ["operacional", "supply-chain"],
+      "environments": {
+        "dev":   { "workspaceId": "yyy-dev",   "spAlias": "PBI_SP_DEV" },
+        "test":  { "workspaceId": "yyy-test",  "spAlias": "PBI_SP_TEST" },
+        "prod":  { "workspaceId": "yyy-prod",  "spAlias": "PBI_SP_PROD" }
+      },
+      "stakeholders": {
+        "owner":      "gerente-operacoes@empresa.com",
+        "steward":    "steward-dados@empresa.com",
+        "techLead":   "lider-tecnico@empresa.com",
+        "qa":         "qa-lead@empresa.com"
+      },
+      "rlsRoles": ["Gerente Operações", "Comprador"],
+      "refreshPolicy": "scheduled",
+      "refreshSchedule": "0 4 * * *",
+      "currentVersion": "0.9.0",
+      "lastDeploy": "2026-07-08T14:20:00Z",
+      "lastDeployBy": "deploy-bot",
+      "status": "active",
+      "tags": ["tier-2", "pbi-premium"]
+    },
+    {
+      "id": "bi-rh",
+      "name": "RH",
+      "description": "Headcount, turnover, absenteísmo, diversidade",
+      "repo": "https://github.com/org/bi-rh",
+      "template": "https://github.com/org/bi-template",
+      "sharedLibraryRef": null,
+      "domains": ["pessoas"],
+      "environments": {
+        "dev":   { "workspaceId": "zzz-dev",   "spAlias": "PBI_SP_DEV" },
+        "test":  { "workspaceId": "zzz-test",  "spAlias": "PBI_SP_TEST" },
+        "prod":  { "workspaceId": "zzz-prod",  "spAlias": "PBI_SP_PROD" }
+      },
+      "stakeholders": {
+        "owner":      "gerente-rh@empresa.com",
+        "steward":    "steward-dados@empresa.com",
+        "techLead":   "lider-tecnico@empresa.com",
+        "qa":         "qa-lead@empresa.com"
+      },
+      "rlsRoles": ["Gerente RH", "BP"],
+      "refreshPolicy": "scheduled",
+      "refreshSchedule": "0 5 * * 1",
+      "currentVersion": "0.5.0",
+      "lastDeploy": "2026-07-12T09:15:00Z",
+      "lastDeployBy": "deploy-bot",
+      "status": "active",
+      "tags": ["tier-2", "dados-sensiveis", "lgpd"]
+    }
+  ],
+  "sharedLibrary": {
+    "repo": "https://github.com/org/bi-shared-library",
+    "version": "2.1.0",
+    "lastUpdated": "2026-07-14",
+    "components": [
+      {
+        "name": "padroes/naming-conventions",
+        "version": "1.3.0",
+        "description": "Padrão de nomenclatura (master)"
+      },
+      {
+        "name": "tmdl/d_calendario",
+        "version": "1.0.0",
+        "description": "Tabela de calendário compartilhada"
+      },
+      {
+        "name": "scripts/publish",
+        "version": "1.2.0",
+        "description": "Script de publicação Power BI Service"
+      },
+      {
+        "name": "ci-cd/validate",
+        "version": "1.0.0",
+        "description": "Reusable workflow: validação TMDL + smoke tests DAX"
+      }
+    ]
+  },
+  "standards": {
+    "namingConvention": "https://github.com/org/bi-shared-library/blob/main/padroes/naming-conventions.md",
+    "prTemplate": "https://github.com/org/bi-template/blob/main/.github/PULL_REQUEST_TEMPLATE.md",
+    "dataDictionaryRequired": true,
+    "smokeTestsRequired": true
+  }
+}

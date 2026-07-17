@@ -1,0 +1,64 @@
+{
+  "//": "Configurações do workspace para Power BI Project (PBIP)",
+  "files.associations": {
+    "*.tmdl": "tom",
+    "*.pbir": "jsonc",
+    "*.pbip": "jsonc",
+    "*.pbipProj": "jsonc"
+  },
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.renderWhitespace": "boundary",
+  "editor.minimap.enabled": true,
+  "editor.bracketPairColorization.enabled": true,
+
+  "dax.formatter.autorFormat": true,
+  "dax.formatter.alignColumns": true,
+  "dax.formatter.lineStyle": "longLine",
+  "dax.formatter.spaceAfterFunction": true,
+  "dax.formatter.formatting": {
+    "separator": ",",
+    "delimiter": ";",
+    "decimalSeparator": "."
+  },
+
+  "tabularEditor.showHiddenProperties": false,
+  "tabularEditor.formatOnSave": true,
+
+  "json.schemas": [
+    {
+      "fileMatch": ["**/definition.pbir"],
+      "url": "https://raw.githubusercontent.com/microsoft/powerbi-project-schemas/main/report.v1.json"
+    }
+  ],
+  "json.format.enable": true,
+  "jsonc.format.enable": true,
+
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
+  },
+
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bin": true,
+    "**/obj": true,
+    "**/.pbi": true
+  },
+
+  "git.enableSmartCommit": true,
+  "git.inputValidationSubjectLength": 72,
+  "git.inputValidationLength": 100,
+  "git.autofetch": true,
+  "git.confirmSync": false,
+
+  "extensions.supportUntrustedWorkspaces": {
+    "TMDL.tmdl-tools": true,
+    "dax-formatter.dax-formatter": true
+  }
+}

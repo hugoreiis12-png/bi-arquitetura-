@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://empresa.com/schemas/projects-catalog.v1.json",
+  "title": "Catálogo de Projetos BI",
+  "description": "Esquema do arquivo portfolio/catalog/projects.json",
+  "type": "object",
+  "required": ["version", "owner", "projects"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "lastUpdated": { "type": "string", "format": "date" },
+    "owner": { "type": "string", "format": "email" },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "repo", "template", "environments", "stakeholders", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^bi-[a-z0-9-]+$" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "repo": { "type": "string", "format": "uri" },
+          "template": { "type": "string", "format": "uri" },
+          "sharedLibraryRef": { "type": ["string", "null"] },
+          "domains": { "type": "array", "items": { "type": "string" } },
+          "environments": {
+            "type": "object",
+            "required": ["dev", "test", "prod"],
+            "properties": {
+              "dev":  { "$ref": "#/$defs/environment" },
+              "test": { "$ref": "#/$defs/environment" },
+              "prod": { "$ref": "#/$defs/environment" }
+            }
+          },
+          "stakeholders": {
+            "type": "object",
+            "required": ["owner", "steward", "techLead"],
+            "properties": {
+              "owner":    { "type": "string", "format": "email" },
+              "steward":  { "type": "string", "format": "email" },
+              "techLead": { "type": "string", "format": "email" },
+              "qa":       { "type": "string", "format": "email" }
+            }
+          },
+          "rlsRoles": { "type": "array", "items": { "type": "string" } },
+          "refreshPolicy": { "enum": ["scheduled", "on-demand", "hybrid"] },
+          "refreshSchedule": { "type": "string" },
+          "currentVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+          "lastDeploy": { "type": "string", "format": "date-time" },
+          "lastDeployBy": { "type": "string" },
+          "status": { "enum": ["active", "deprecated", "archived", "planned"] },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "sharedLibrary": {
+      "type": "object",
+      "properties": {
+        "repo": { "type": "string", "format": "uri" },
+        "version": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date" },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version", "description"],
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "standards": {
+      "type": "object",
+      "properties": {
+        "namingConvention": { "type": "string", "format": "uri" },
+        "prTemplate": { "type": "string", "format": "uri" },
+        "dataDictionaryRequired": { "type": "boolean" },
+        "smokeTestsRequired": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "environment": {
+      "type": "object",
+      "required": ["workspaceId", "spAlias"],
+      "properties": {
+        "workspaceId": { "type": "string" },
+        "spAlias": { "type": "string" }
+      }
+    }
+  }
+}

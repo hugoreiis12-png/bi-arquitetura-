@@ -1,0 +1,88 @@
+# ============================================
+# validate.yml
+# Reusable Workflow para GitHub Actions
+# Use no projeto novo:
+#   .github/workflows/validate.yml → ./.github/workflows/bi-ci-cd.yml
+# ============================================
+
+name: ⬇️ Reusable · Validate BI Project
+
+on:
+  workflow_call:
+    inputs:
+      datasets-path:
+        description: 'Caminho dos datasets (default: src/datasets)'
+        required: false
+        type: string
+        default: 'src/datasets'
+      tests-path:
+        description: 'Caminho dos testes (default: tests/dax)'
+        required: false
+        type: string
+        default: 'tests/dax'
+      fail-on-warnings:
+        description: 'Falhar em warnings (além de errors)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install pbi-tools
+        run: |
+          dotnet tool install --global Microsoft.PowerBI.Tools
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Validate TMDL & compile
+        shell: pwsh
+        run: |
+          $datasetsPath = "${{ inputs.datasets-path }}"
+          $testsPath    = "${{ inputs.tests-path }}"
+          $failOnWarn   = [bool]"${{ inputs.fail-on-warnings }}"
+
+          Write-Host "Validating TMDL in: $datasetsPath"
+          $pbips = Get-ChildItem -Path $datasetsPath -Filter *.pbip -Recurse -ErrorAction SilentlyContinue
+          if (-not $pbips) {
+            Write-Host "::warning::Nenhum PBIP encontrado em $datasetsPath"
+            if ($failOnWarn) { exit 1 }
+            exit 0
+          }
+
+          $fails = @()
+          foreach ($pbip in $pbips) {
+            Write-Host "==> Compiling $($pbip.Name)"
+            pbi-tools compile $pbip.DirectoryName --out ./build 2>&1 | Tee-Object -Variable output
+            if ($LASTEXITCODE -ne 0) { $fails += $pbip.Name }
+          }
+
+          if ($fails.Count -gt 0) {
+            Write-Error "Falha em: $($fails -join ', ')"
+            exit 1
+          }
+
+      - name: Run DAX smoke tests
+        shell: pwsh
+        run: |
+          $testsPath = "${{ inputs.tests-path }}"
+          Write-Host "Validating DAX tests in: $testsPath"
+          $tests = Get-ChildItem -Path $testsPath -Filter *.dax -ErrorAction SilentlyContinue
+          if (-not $tests) {
+            Write-Host "No tests found. Skipping."
+            exit 0
+          }
+          foreach ($t in $tests) {
+            Write-Host "== Test: $($t.Name) =="
+            Get-Content $t.FullName
+          }
+          Write-Host "✓ Smoke tests OK"

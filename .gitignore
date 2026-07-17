@@ -1,0 +1,97 @@
+# ============================================
+# Power BI — binários NÃO versionáveis
+# ============================================
+*.pbix
+*.pbit
+*.pbi
+*.tmp
+*.cache
+
+# ============================================
+# Office / Excel temporários
+# ============================================
+~$*.xlsx
+~$*.xlsm
+~$*.xlsb
+~$*.csv
+
+# ============================================
+# Build / IDE local
+# ============================================
+/bin/
+/obj/
+.vs/
+.vscode/.browse.VC.db*
+*.user
+*.suo
+*.userprefs
+
+# ============================================
+# Dados locais e amostras privadas
+# ============================================
+/local-data/
+/sample-data/private/
+/samples/*.csv
+!/samples/.gitkeep
+
+# ============================================
+# Secrets — NUNCA commitar
+# ============================================
+*.env
+*.env.local
+*.env.*.local
+secrets.json
+service-principal.json
+*.pfx
+*.p12
+*.key
+deploy/*/config.local.json
+deploy/*/.env
+
+# ============================================
+# Logs
+# ============================================
+*.log
+logs/
+*.trx
+TestResults/
+
+# ============================================
+# OS
+# ============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ============================================
+# Python (caso use Soda / GE)
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# ============================================
+# Node (caso use pbi-tools wrapper JS)
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ============================================
+# Power BI Project (PBIP) — pastas geradas
+# ============================================
+# Na maioria dos casos o .Dataset inteiro é versionado.
+# Se preferir ignorar binários grandes dentro dele:
+# src/datasets/**/*.cache
+# src/datasets/**/pbi.cache
+# Mas por padrão VERSIONAMOS TUDO (é texto).

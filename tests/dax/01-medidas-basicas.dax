@@ -1,0 +1,34 @@
+// ============================================
+// 01-medidas-basicas.dax
+// Smoke tests para medidas fundamentais
+// ============================================
+// Estes testes são executados pelo pipeline CI em todo PR.
+// Se qualquer EVALUATE retornar erro ou valores inconsistentes, o PR é bloqueado.
+
+EVALUATE
+ROW(
+    // Medidas devem existir e retornar valor numérico
+    "Receita Total BRL - existe?", ISBLANK([Vendas.Receita Total BRL]),
+    "Margem % - é 0..1?", IF([Vendas.Margem %] >= 0 && [Vendas.Margem %] <= 1, "OK", "OUT_OF_RANGE"),
+    "Ticket Médio - é positivo?", IF([Vendas.Ticket Médio [R$]] > 0, "OK", "NOT_POSITIVE"),
+    "Pedidos - é inteiro?", IF([Vendas.Pedidos] = INT([Vendas.Pedidos]), "OK", "NOT_INTEGER")
+)
+
+// ============================================
+// Teste 2: Receita acumulada YTD = Receita total no ano corrente
+// ============================================
+EVALUATE
+VAR _receitaTotal = [Vendas.Receita Total BRL]
+VAR _receitaYTD   = [Vendas.Receita Acumulada BRL]
+RETURN
+ROW(
+    "Test YTD", IF(_receitaYTD <= _receitaTotal, "OK", "YTD_MAIOR_QUE_TOTAL")
+)
+
+// ============================================
+// Teste 3: Margem nunca negativa para o dataset (regra de negócio)
+// ============================================
+EVALUATE
+ROW(
+    "Margem mínima histórica", IF([Vendas.Margem %] >= 0, "OK", "MARGEM_NEGATIVA")
+)

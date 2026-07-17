@@ -1,0 +1,7 @@
+# Ignore tudo dentro de Vendas.Dataset/ até o primeiro PBIP ser criado.
+# O .gitignore raiz permite versionar TMDL/JSON depois.
+# Quando começar, troque este .gitignore por um vazio (ou remova) e adicione os arquivos reais.
+
+*
+!.gitignore
+!.gitkeep

@@ -1,0 +1,19 @@
+{
+  "environment": "test",
+  "workspaceId": "PUT-YOUR-TEST-WORKSPACE-ID-HERE",
+  "workspaceName": "[TEST] Vendas",
+  "servicePrincipalId": "${PBI_SP_TEST_CLIENT_ID}",
+  "refreshPolicy": {
+    "type": "scheduled",
+    "schedule": "0 */4 * * *",
+    "maxRetries": 3
+  },
+  "approvers": [
+    "qa-lead@empresa.com",
+    "lider-tecnico@empresa.com"
+  ],
+  "alerts": {
+    "teams": "https://outlook.office.com/webhook/PLACEHOLDER",
+    "emailOnFailure": ["oncall-bi@empresa.com", "qa-lead@empresa.com"]
+  }
+}

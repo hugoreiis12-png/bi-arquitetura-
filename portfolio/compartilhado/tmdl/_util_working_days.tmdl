@@ -1,0 +1,60 @@
+/// Utilitários de dias úteis
+/// Inclusão: copie para <Dataset>/definition/tables/_util_business_days.tmdl
+/// e referencie nos relacionamentos da fato.
+
+createOrReplace
+
+table '_util_business_days'
+    lineageTag: shared-working-days
+    description: 'Tabela auxiliar de dias úteis (com feriados nacionais BR)'
+
+    column date
+        dataType: dateTime
+        formatString: 'yyyy-mm-dd'
+        summarizeBy: none
+        sourceColumn: date
+
+    column is_business_day
+        dataType: boolean
+        formatString: '"TRUE";"TRUE";"FALSE"'
+        summarizeBy: none
+        sourceColumn: is_business_day
+
+    column business_day_index
+        dataType: int64
+        formatString: 0
+        summarizeBy: none
+        sourceColumn: business_day_index
+
+    partition _util_business_days = m
+        mode: import
+        source =
+                let
+                    // Lista de feriados nacionais brasileiros (atualizar anualmente)
+                    feriados = #table(
+                        {"date"},
+                        {
+                            {#date(2026, 1, 1)},   // Confraternização
+                            {#date(2026, 4, 21)},  // Tiradentes
+                            {#date(2026, 5, 1)},   // Dia do Trabalho
+                            {#date(2026, 9, 7)},   // Independência
+                            {#date(2026, 10, 12)}, // N.Sra Aparecida
+                            {#date(2026, 11, 2)},  // Finados
+                            {#date(2026, 11, 15)}, // Proclamação
+                            {#date(2026, 12, 25)}  // Natal
+                        }
+                    ),
+                    datas = List.Dates(#date(2024, 1, 1), Duration.Days(#date(2030,12,31) - #date(2024,1,1)) + 1, #duration(1,0,0,0)),
+                    tbl = Table.FromList(datas, Splitter.SplitByNothing(), {"date"}),
+                    #"Tipo" = Table.TransformColumnTypes(tbl, {{"date", type date}}),
+                    #"DiaUtil" = Table.AddColumn(#"Tipo", "is_business_day", each
+                        Date.DayOfWeek([date]) < 5
+                        and not List.Contains(feriados[date], [date]),
+                        Logical.Type
+                    ),
+                    #"Idx" = Table.AddIndexColumn(#"DiaUtil", "business_day_index", 1, 1, Int64.Type)
+                in
+                    #"Idx"
+
+    annotation PBI_NavigationStepName = Navigation
+    annotation PBI_ResultType = Table

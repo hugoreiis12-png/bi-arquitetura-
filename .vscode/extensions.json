@@ -1,0 +1,21 @@
+{
+  "//": "Extensões recomendadas para o workspace de BI",
+  "recommendations": [
+    "Microsoft.powerbi-vscode",
+    "TMDL.tmdl-tools",
+    "dax-formatter.dax-formatter",
+    "TabularEditor.tabular-editor-ide",
+    "DAXStudio.dax-studio",
+    "ms-dotnettools.csharp",
+    "donjayamanne.powerquery-sdk",
+    "ms-python.python",
+    "redhat.vscode-yaml",
+    "esbenp.prettier-vscode",
+    "eamodio.gitlens",
+    "github.vscode-pull-request-github",
+    "ms-vscode.azure-repos"
+  ],
+  "unwantedRecommendations": [
+    "ms-vscode.powershell"
+  ]
+}

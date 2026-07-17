@@ -1,0 +1,112 @@
+{
+  "//": "MCP server configuration for VSCode (Cline/Continue).",
+  "//": "Configure o cliente MCP que você usa. Suportados: Cline, Continue, Claude Desktop.",
+  "//": "Veja: https://modelcontextprotocol.io/clients",
+  "mcpServers": {
+    "powerbi": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "${workspaceFolder}/src:/app/src",
+        "-e",
+        "PBI_TENANT_ID",
+        "-e",
+        "PBI_SP_CLIENT_ID",
+        "-e",
+        "PBI_SP_CLIENT_SECRET",
+        "-e",
+        "PBI_WORKSPACE_DEV_ID",
+        "-e",
+        "PBI_WORKSPACE_TEST_ID",
+        "-e",
+        "PBI_WORKSPACE_PROD_ID",
+        "-e",
+        "PBI_WORKSPACE_PLAYGROUND_ID",
+        "-e",
+        "REDIS_URL",
+        "-e",
+        "AZURE_AI_SEARCH_ENDPOINT",
+        "-e",
+        "AZURE_AI_SEARCH_KEY",
+        "-e",
+        "APP_INSIGHTS_CONNECTION_STRING",
+        "acrbi.azurecr.io/powerbi-mcp:1.0.0"
+      ],
+      "env": {
+        "PBI_TENANT_ID": "${input:pbi_tenant_id}",
+        "PBI_SP_CLIENT_ID": "${input:pbi_sp_client_id}",
+        "PBI_SP_CLIENT_SECRET": "${input:pbi_sp_client_secret}",
+        "PBI_WORKSPACE_DEV_ID": "${input:pbi_workspace_dev_id}",
+        "PBI_WORKSPACE_TEST_ID": "${input:pbi_workspace_test_id}",
+        "PBI_WORKSPACE_PROD_ID": "${input:pbi_workspace_prod_id}",
+        "PBI_WORKSPACE_PLAYGROUND_ID": "${input:pbi_workspace_playground_id}",
+        "REDIS_URL": "${input:redis_url}",
+        "AZURE_AI_SEARCH_ENDPOINT": "${input:ai_search_endpoint}",
+        "AZURE_AI_SEARCH_KEY": "${input:ai_search_key}",
+        "APP_INSIGHTS_CONNECTION_STRING": "${input:app_insights_cs}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "pbi_tenant_id",
+      "type": "promptString",
+      "description": "Azure AD Tenant ID"
+    },
+    {
+      "id": "pbi_sp_client_id",
+      "type": "promptString",
+      "description": "Service Principal Client ID (for Power BI access)"
+    },
+    {
+      "id": "pbi_sp_client_secret",
+      "type": "promptString",
+      "description": "Service Principal Secret",
+      "password": true
+    },
+    {
+      "id": "pbi_workspace_dev_id",
+      "type": "promptString",
+      "description": "Power BI Workspace ID (Dev)"
+    },
+    {
+      "id": "pbi_workspace_test_id",
+      "type": "promptString",
+      "description": "Power BI Workspace ID (Test)"
+    },
+    {
+      "id": "pbi_workspace_prod_id",
+      "type": "promptString",
+      "description": "Power BI Workspace ID (Prod)"
+    },
+    {
+      "id": "pbi_workspace_playground_id",
+      "type": "promptString",
+      "description": "Power BI Workspace ID (AI Playground)"
+    },
+    {
+      "id": "redis_url",
+      "type": "promptString",
+      "description": "Redis URL (rate limit + approval cache)"
+    },
+    {
+      "id": "ai_search_endpoint",
+      "type": "promptString",
+      "description": "Azure AI Search Endpoint (RAG)"
+    },
+    {
+      "id": "ai_search_key",
+      "type": "promptString",
+      "description": "Azure AI Search Key",
+      "password": true
+    },
+    {
+      "id": "app_insights_cs",
+      "type": "promptString",
+      "description": "Application Insights Connection String (telemetry)"
+    }
+  ]
+}

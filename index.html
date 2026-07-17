@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Arquitetura IDE-Power BI · Camadas, Ferramentas e Fluxo</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --bg2:#0f1530;
+    --panel:#121a3a;
+    --line:#1f2a55;
+    --ink:#e7ecff;
+    --muted:#8a93b8;
+    --acc:#7c5cff;
+    --acc2:#22d3ee;
+    --acc3:#10b981;
+    --warn:#f59e0b;
+    --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:radial-gradient(1200px 600px at 10% 0%,#1a2456 0%,#0b1020 60%) fixed;color:var(--ink);font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  header{padding:48px 64px 24px}
+  h1{font-size:34px;margin:0 0 8px;letter-spacing:-.5px}
+  h1 span{background:linear-gradient(90deg,#7c5cff,#22d3ee);-webkit-background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:15px;max-width:1100px;line-height:1.6}
+  main{padding:0 64px 80px;max-width:1500px;margin:0 auto}
+  section{margin:36px 0}
+  .section-title{font-size:20px;margin:0 0 14px;display:flex;align-items:center;gap:10px}
+  .section-title::before{content:"";width:6px;height:22px;background:linear-gradient(180deg,#7c5cff,#22d3ee);border-radius:3px}
+  .grid{display:grid;gap:18px}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  .grid.cols-4{grid-template-columns:repeat(4,1fr)}
+  .grid.cols-2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:1100px){.grid.cols-3,.grid.cols-4{grid-template-columns:1fr 1fr}}
+  @media(max-width:700px){.grid.cols-3,.grid.cols-4,.grid.cols-2{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:18px 20px;position:relative;overflow:hidden}
+  .card::after{content:"";position:absolute;inset:0;background:radial-gradient(600px 120px at 0% 0%,rgba(124,92,255,.15),transparent 60%);pointer-events:none}
+  .card h3{margin:0 0 6px;font-size:15px;letter-spacing:.2px}
+  .card p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}
+  .tag{display:inline-block;font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(124,92,255,.15);color:#b9a8ff;margin-right:6px;margin-top:6px;border:1px solid rgba(124,92,255,.35)}
+  .tag.acc2{background:rgba(34,211,238,.12);color:#a5e8f6;border-color:rgba(34,211,238,.35)}
+  .tag.acc3{background:rgba(16,185,129,.12);color:#a7f0d0;border-color:rgba(16,185,129,.35)}
+  .tag.warn{background:rgba(245,158,11,.12);color:#fcd9a3;border-color:rgba(245,158,11,.35)}
+  .tag.danger{background:rgba(239,68,68,.12);color:#ffc1c1;border-color:rgba(239,68,68,.35)}
+  /* Layers */
+  .layer{display:flex;align-items:stretch;gap:18px;margin:18px 0;flex-wrap:wrap}
+  .layer .box{flex:1;min-width:220px;background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:18px;position:relative}
+  .layer .box h4{margin:0 0 10px;font-size:14px;display:flex;align-items:center;gap:8px}
+  .layer .box .ico{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#7c5cff,#22d3ee);display:inline-flex;align-items:center;justify-content:center;font-size:16px}
+  .arrow{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:22px}
+  /* Tree */
+  .tree{font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;background:#0a0f24;border:1px solid var(--line);border-radius:14px;padding:22px;font-size:13px;line-height:1.7;color:#cfd6f0;overflow:auto}
+  .tree .dir{color:#7c5cff;font-weight:600}
+  .tree .file{color:#a5e8f6}
+  .tree .note{color:#8a93b8}
+  .tree .hl{color:#fcd9a3}
+  /* Table */
+  table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:14px;overflow:hidden;border:1px solid var(--line);font-size:13.5px}
+  th{background:#131c44;text-align:left;padding:12px 14px;color:#b9a8ff;font-weight:600;border-bottom:1px solid var(--line)}
+  td{padding:12px 14px;border-bottom:1px solid #1a234d;vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td code{background:#0a0f24;padding:2px 6px;border-radius:5px;color:#a5e8f6;font-size:12.5px}
+  /* Pipeline */
+  .pipeline{display:flex;gap:0;flex-wrap:wrap;margin-top:14px}
+  .stage{flex:1;min-width:180px;background:linear-gradient(180deg,#15205a,#0e1638);border:1px solid var(--line);padding:18px 16px;border-radius:12px;position:relative}
+  .stage:not(:last-child)::after{content:"→";position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:#7c5cff;font-size:20px;z-index:2;background:#0b1020;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--line)}
+  .stage h5{margin:0 0 6px;font-size:13px;color:#b9a8ff}
+  .stage p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .stage .step{font-size:11px;color:#22d3ee;margin-top:8px;font-family:'JetBrains Mono',monospace}
+  /* Footer */
+  .meta{display:flex;gap:24px;flex-wrap:wrap;margin-top:14px;color:var(--muted);font-size:13px}
+  .meta div{display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#7c5cff}
+  .dot.g{background:#10b981}
+  .dot.c{background:#22d3ee}
+  .dot.y{background:#f59e0b}
+  .legend{background:#0a0f24;border:1px solid var(--line);padding:18px 22px;border-radius:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .legend div{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+  .pill{padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .pill.editor{background:rgba(124,92,255,.2);color:#b9a8ff}
+  .pill.cli{background:rgba(34,211,238,.18);color:#a5e8f6}
+  .pill.service{background:rgba(16,185,129,.18);color:#a7f0d0}
+  .pill.gov{background:rgba(245,158,11,.18);color:#fcd9a3}
+  details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-top:10px}
+  summary{cursor:pointer;font-weight:600;color:#cfd6f0}
+  details pre{background:#0a0f24;padding:12px;border-radius:8px;overflow:auto;font-size:12.5px;margin:10px 0 0}
+  .kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
+  @media(max-width:1000px){.kanban{grid-template-columns:1fr 1fr}}
+  .col{background:#0e1638;border:1px solid var(--line);border-radius:10px;padding:12px;min-height:90px}
+  .col h6{margin:0 0 8px;font-size:12px;color:#b9a8ff;text-transform:uppercase;letter-spacing:.5px}
+  .col .it{background:#15205a;border:1px solid #1f2a55;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px;color:#cfd6f0}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>Arquitetura IDE · Power BI</span> — Desenho & Mapeamento de Estrutura de Desenvolvimento</h1>
+  <p class="sub">Plano para conduzir projetos de BI no padrão de engenharia de software: <b>Power BI Project (PBIP)</b> como fonte da verdade, versionamento com Git, automação via CI/CD, IDEs de código (VS Code / Visual Studio) e ferramentas especializadas (Tabular Editor, DAX Studio, pbi-tools, ALM Toolkit). Tudo organizado em camadas, com responsabilidades claras e fluxo end-to-end do dev local até a produção no Power BI Service.</p>
+  <div class="meta">
+    <div><span class="dot"></span> Camada de autoria</div>
+    <div><span class="dot c"></span> Camada de código-fonte</div>
+    <div><span class="dot g"></span> Camada de versionamento</div>
+    <div><span class="dot y"></span> Camada de governança & deploy</div>
+  </div>
+</header>
+
+<main>
+
+<!-- 1. Visão geral em camadas -->
+<section>
+  <h2 class="section-title">1. Visão geral em camadas (do desenvolvedor à produção)</h2>
+  <div class="layer">
+    <div class="box">
+      <h4><span class="ico">👤</span> 1 · Autor / Dev BI</h4>
+      <p>Pleno controle da autoria. Trabalha com PBIP, escreve DAX/M/Power Query como texto, roda versionamento e valida antes de subir.</p>
+      <span class="tag">Skill: DAX/M/TMDL</span><span class="tag">Git</span><span class="tag">Code review</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">⌨️</span> 2 · IDE (VS Code / Visual Studio)</h4>
+      <p>IDE de código aberta. Extensions dão <i>IntelliSense</i>, <i>formatting</i>, <i>schema validation</i> e integração Git nativa.</p>
+      <span class="tag acc2">Power BI Project</span><span class="tag acc2">Tabular Editor</span><span class="tag acc2">DAX Formatter</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">🌿</span> 3 · Repositório (Git)</h4>
+      <p>Repositório central. Branches por feature, PRs revisados, <i>branch policy</i> e Conventional Commits para rastreabilidade.</p>
+      <span class="tag acc3">Azure DevOps</span><span class="tag acc3">GitHub</span><span class="tag acc3">Trunk-based / GitFlow</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">🚀</span> 4 · CI/CD Pipeline</h4>
+      <p>Build, testes automatizados (DAX smoke tests, linter TMDL), deploy para <i>Dev → Test → Prod</i> via service principal.</p>
+      <span class="tag warn">Azure Pipelines</span><span class="tag warn">GitHub Actions</span><span class="tag warn">Power BI REST API</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">☁️</span> 5 · Power BI Service</h4>
+      <p>Ambientes isolados, deployment pipelines nativos, datasets, reports, dataflows, security (RLS) e refresh agendado.</p>
+      <span class="tag">Workspaces</span><span class="tag">Pipelines</span><span class="tag">Gateway</span>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Ferramentas por papel -->
+<section>
+  <h2 class="section-title">2. Stack de ferramentas (cada uma com papel claro)</h2>
+  <div class="grid cols-4">
+    <div class="card">
+      <h3>Visual Studio Code</h3>
+      <p>IDE principal. Extensions: <b>Power BI Project</b>, <b>Tabular Editor IDE</b>, <b>DAX Formatter</b>, <b>Power Query SDK</b>.</p>
+      <span class="pill editor">Editor</span>
+    </div>
+    <div class="card">
+      <h3>Visual Studio 2022</h3>
+      <p>Para quem já vem de .NET/C# e quer usar <i>SSDT-style</i> com integração avançada de Azure DevOps.</p>
+      <span class="pill editor">Editor</span>
+    </div>
+    <div class="card">
+      <h3>Power BI Desktop (PBIP)</h3>
+      <p>Ativado em <code>File → Options → Preview features → Power BI Project (.pbip) save mode</code>. Salva como pasta de arquivos texto.</p>
+      <span class="pill editor">Editor</span>
+    </div>
+    <div class="card">
+      <h3>Tabular Editor 3</h3>
+      <p>Edição em massa do modelo semântico (TMDL/TOM), versionamento granular, C# scripts para automação.</p>
+      <span class="pill editor">Editor</span>
+    </div>
+    <div class="card">
+      <h3>DAX Studio</h3>
+      <p>Profiler, performance analyzer, métricas de storage engine, copy/paste de medidas entre ambientes.</p>
+      <span class="pill editor">Editor</span>
+    </div>
+    <div class="card">
+      <h3>pbi-tools (CLI)</h3>
+      <p>Linha de comando oficial Microsoft para extrair / compilar / comparar PBIP. Usado em pipelines.</p>
+      <span class="pill cli">CLI</span>
+    </div>
+    <div class="card">
+      <h3>ALM Toolkit</h3>
+      <p>Comparação e merge de datasets entre workspaces, atualização seletiva, tratamento de conflitos.</p>
+      <span class="pill cli">CLI</span>
+    </div>
+    <div class="card">
+      <h3>Git + Azure DevOps / GitHub</h3>
+      <p>Repositório remoto, PRs, branch policies, auditoria, history de quem mexeu em qual medida.</p>
+      <span class="pill service">Serviço</span>
+    </div>
+    <div class="card">
+      <h3>Power BI REST API</h3>
+      <p>Publicação programática via Service Principal. Drives do CI/CD. <code>POST /datasets</code>, <code>POST /refreshes</code>.</p>
+      <span class="pill service">Serviço</span>
+    </div>
+    <div class="card">
+      <h3>Azure Pipelines / GitHub Actions</h3>
+      <p>Orquestração de build, validação TMDL, smoke tests de DAX, deploy controlado por ambiente.</p>
+      <span class="pill service">Serviço</span>
+    </div>
+    <div class="card">
+      <h3>OneLake / Fabric (opcional)</h3>
+      <p>Lakehouse + Direct Lake para modelos grandes, versionado pelo Fabric Git integration.</p>
+      <span class="pill service">Serviço</span>
+    </div>
+    <div class="card">
+      <h3>Power BI Deployment Pipelines</h3>
+      <p>Promoção nativa Dev → Test → Prod com diff visual e regras de RLS/dataflows.</p>
+      <span class="pill gov">Governança</span>
+    </div>
+  </div>
+</section>
+
+<!-- 3. Estrutura de pastas -->
+<section>
+  <h2 class="section-title">3. Estrutura de pastas do repositório (template)</h2>
+  <div class="grid cols-2">
+    <div class="card">
+      <h3>Layout recomendado</h3>
+      <div class="tree">
+<span class="dir">/</span>
+├── <span class="dir">src/</span>
+│   ├── <span class="dir">datasets/</span>           <span class="note"># PBIP dos modelos semânticos (.Dataset)</span>
+│   │   └── <span class="file">Vendas.Dataset</span>/
+│   ├── <span class="dir">reports/</span>            <span class="note"># PBIP dos relatórios (.Report)</span>
+│   │   └── <span class="file">Vendas.Report</span>/
+│   ├── <span class="dir">dataflows/</span>          <span class="note"># Dataflow Gen2 (def. JSON/TMDL)</span>
+│   ├── <span class="dir">shared/</span>             <span class="note"># Medidas e tabelas compartilhadas</span>
+│   │   ├── <span class="file">calendar.tmdl</span>
+│   │   └── <span class="file">fx-rates.tmdl</span>
+│   └── <span class="dir">pipelines/</span>          <span class="note"># Data pipelines (Fabric/ADF)</span>
+├── <span class="dir">docs/</span>
+│   ├── <span class="file">architecture.md</span>     <span class="note"># Desenho de arquitetura</span>
+│   ├── <span class="file">naming-conventions.md</span>
+│   ├── <span class="file">data-dictionary.md</span>
+│   └── <span class="hl">★ adf / diagrams</span>
+├── <span class="dir">tests/</span>
+│   ├── <span class="dir">dax/</span>                <span class="note"># DAX smoke tests (DAX Studio + json)</span>
+│   ├── <span class="dir">data-quality/</span>       <span class="note"># Great Expectations / Soda</span>
+│   └── <span class="file">sample-queries.json</span>
+├── <span class="dir">deploy/</span>
+│   ├── <span class="dir">dev/</span>                <span class="note"># Workspace Dev — service principal A</span>
+│   ├── <span class="dir">test/</span>               <span class="note"># Workspace Test — service principal B</span>
+│   └── <span class="dir">prod/</span>              <span class="note"># Workspace Prod — service principal C (governado)</span>
+├── <span class="dir">scripts/</span>
+│   ├── <span class="file">extract-pbip.ps1</span>
+│   ├── <span class="file">compile-pbip.ps1</span>
+│   ├── <span class="file">publish.ps1</span>
+│   └── <span class="file">refresh.ps1</span>
+├── <span class="dir">.github/workflows/</span>     <span class="note"># ou azure-pipelines.yml</span>
+│   └── <span class="file">bi-ci-cd.yml</span>
+├── <span class="file">.gitignore</span>             <span class="note"># Ignora .pbix, .pbit, bin/, obj/</span>
+├── <span class="file">.gitattributes</span>         <span class="note"># LFS opcional p/ arquivos grandes</span>
+├── <span class="file">README.md</span>
+└── <span class="file">CHANGELOG.md</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Decisões de arquitetura</h3>
+      <p><b>PBIP em vez de PBIX.</b> O PBIX é binário e bloqueia versionamento granular. O PBIP é uma pasta de arquivos texto (TMDL + report.json + definition.pbir), permitindo diffs legíveis e PRs revisáveis.</p>
+      <p style="margin-top:10px"><b>Separação Dataset/Report.</b> Camadas do modelo semântico e do visual ficam desacopladas. Vários reports podem consumir o mesmo dataset. Publicação independente.</p>
+      <p style="margin-top:10px"><b>Shared como biblioteca.</b> Medidas, tabelas de calendário e funções de cálculo ficam em <code>src/shared/</code> e são referenciadas pelos datasets — evita duplicação e facilita governança.</p>
+      <p style="margin-top:10px"><b>Três ambientes espelhados.</b> A pasta <code>deploy/</code> espelha os workspaces do Service. Cada um tem service principal próprio, com permissões mínimas (princípio do menor privilégio).</p>
+      <p style="margin-top:10px"><b>Testes antes do deploy.</b> Smoke tests de DAX validam expressões-chave. Testes de qualidade de dados validam o ETL antes de publicar.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Pipeline CI/CD -->
+<section>
+  <h2 class="section-title">4. Pipeline CI/CD — fluxo de promoção</h2>
+  <div class="pipeline">
+    <div class="stage">
+      <h5>① Commit & PR</h5>
+      <p>Dev abre PR. <b>Policy</b> exige revisão + checagem TMDL + linter DAX.</p>
+      <div class="step">git push → PR open</div>
+    </div>
+    <div class="stage">
+      <h5>② Build & Validate</h5>
+      <p>Pipeline valida schema TMDL, roda <b>DAX smoke tests</b>, compila PBIP com pbi-tools.</p>
+      <div class="step">pbi-tools compile</div>
+    </div>
+    <div class="stage">
+      <h5>③ Deploy Dev</h5>
+      <p>Publica automaticamente no workspace <b>Dev</b> via REST API (service principal).</p>
+      <div class="step">REST: POST /v1.0/myorg/datasets</div>
+    </div>
+    <div class="stage">
+      <h5>④ Promote Test</h5>
+      <p>Após aprovação manual, <b>Deployment Pipeline</b> promove Dev → Test.</p>
+      <div class="step">pipeline: deploy stage</div>
+    </div>
+    <div class="stage">
+      <h5>⑤ Promote Prod</h5>
+      <p>Após sign-off do steward, Test → Prod. <b>Refresh</b> agendado controlado.</p>
+      <div class="step">REST: POST /refreshes</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>Estratégias de promoção — comparativo</h3>
+    <table>
+      <thead>
+        <tr><th>Estratégia</th><th>Ferramenta</th><th>Quando usar</th><th>Granularidade</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Deployment Pipelines (nativo)</b></td><td>Power BI Service</td><td>Times pequenos/médios, fluxos simples</td><td>Workspace</td></tr>
+        <tr><td><b>CI/CD via REST + pbi-tools</b></td><td>Azure DevOps / GitHub Actions</td><td>Times com cultura DevOps, governança rígida</td><td>Arquivo (PBIP)</td></tr>
+        <tr><td><b>Fabric Git Integration</b></td><td>Microsoft Fabric</td><td>Lakehouse + Direct Lake, modelagem em escala</td><td>Workspace inteiro</td></tr>
+        <tr><td><b>ALM Toolkit</b></td><td>ALM Toolkit + scripts</td><td>Comparação fina entre datasets, resolução de conflitos</td><td>Objeto (medida, coluna)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 5. Workflow do dev -->
+<section>
+  <h2 class="section-title">5. Workflow do desenvolvedor (ciclo diário)</h2>
+  <div class="grid cols-4">
+    <div class="card">
+      <h3>① Branch & open</h3>
+      <p><code>git checkout -b feat/dax-abc</code> a partir de <code>main</code>.</p>
+    </div>
+    <div class="card">
+      <h3>② Code & validate</h3>
+      <p>Edita no VS Code + Tabular Editor. <b>DAX Formatter</b> padroniza. Linter sinaliza.</p>
+    </div>
+    <div class="card">
+      <h3>③ Local test</h3>
+      <p>DAX Studio roda smoke tests, verifica timings. Datasets compilam localmente.</p>
+    </div>
+    <div class="card">
+      <h3>④ Commit & PR</h3>
+      <p>Conventional Commits. PR dispara build pipeline + reviewers automáticos.</p>
+    </div>
+    <div class="card">
+      <h3>⑤ Review & merge</h3>
+      <p>Steward aprova. Merge squash em <code>main</code> mantém histórico limpo.</p>
+    </div>
+    <div class="card">
+      <h3>⑥ Auto deploy Dev</h3>
+      <p>Pipeline publica no workspace Dev. Notificação no Teams/email.</p>
+    </div>
+    <div class="card">
+      <h3>⑦ Validate Dev</h3>
+      <p>QA faz smoke test funcional. Screenshots anexados ao PR de release.</p>
+    </div>
+    <div class="card">
+      <h3>⑧ Promote Test/Prod</h5>
+      <p>Release manual aciona promotion via deployment pipeline ou REST API.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Kanban de governança -->
+<section>
+  <h2 class="section-title">6. Kanban de governança (quem faz o quê)</h2>
+  <div class="kanban">
+    <div class="col">
+      <h6>Dev BI</h6>
+      <div class="it">Cria branch</div>
+      <div class="it">Escreve DAX/M</div>
+      <div class="it">Smoke test local</div>
+      <div class="it">Abre PR</div>
+    </div>
+    <div class="col">
+      <h6>Reviewer / Lead</h6>
+      <div class="it">Code review TMDL</div>
+      <div class="it">Valida naming</div>
+      <div class="it">Aprova PR</div>
+      <div class="it">Libera deploy</div>
+    </div>
+    <div class="col">
+      <h6>QA / Analytics Engineer</h6>
+      <div class="it">Valida em Dev</div>
+      <div class="it">Roda testes dados</div>
+      <div class="it">Anexa evidência</div>
+      <div class="it">Sign-off Test</div>
+    </div>
+    <div class="col">
+      <h6>Steward / Data Owner</h6>
+      <div class="it">Aprova Prod</div>
+      <div class="it">Revisa RLS</div>
+      <div class="it">Agenda release</div>
+      <div class="it">Comunica stakeholders</div>
+    </div>
+    <div class="col">
+      <h6>Platform / DevOps</h6>
+      <div class="it">Mantém pipeline</div>
+      <div class="it">Gerencia service principals</div>
+      <div class="it">Rotação de segredos</div>
+      <div class="it">Monitora refresh</div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Configuração da IDE -->
+<section>
+  <h2 class="section-title">7. Configuração da IDE (VS Code + Visual Studio)</h2>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <h3>VS Code — settings.json recomendado</h3>
+      <p>Workspace versionado em <code>.vscode/settings.json</code>.</p>
+      <details>
+        <summary>Ver JSON</summary>
+<pre>{
+  "files.associations": {
+    "*.tmdl": "tom",
+    "*.pbir": "json",
+    "*.pbip": "json"
+  },
+  "editor.formatOnSave": true,
+  "dax.formatter.autorFormat": true,
+  "dax.formatter.alignColumns": true,
+  "dax.formatter.lineStyle": "longLine",
+  "tabularEditor.showHiddenProperties": true,
+  "extensions.recommendations": [
+    "power-bi.vscode-powerbi-sdk",
+    "TMDL.tmdl-tools",
+    "dax-formatter.dax-formatter",
+    "donjayamanne.sql-server-integration-services",
+    "ms-dotnettools.csharp"
+  ],
+  "git.enableSmartCommit": true,
+  "git.inputValidationSubjectLength": 72
+}</pre>
+      </details>
+    </div>
+
+    <div class="card">
+      <h3>Visual Studio — extensões e config</h3>
+      <p>Para times com background .NET, o Visual Studio 2022 oferece integração profunda com Azure DevOps e C# scripting (Tabular Editor).</p>
+      <details>
+        <summary>Ver checklist</summary>
+<pre>☑ Azure DevOps Tools (TFVC/Git)
+☑ Power BI Project Tools
+☑ SQL Server Data Tools (SSDT) — opcional p/ SSAS migration
+☑ ReSharper (legibilidade C#)
+☑ Markdown Editor (para docs/)
+☑ GitLens (history/blame visual)</pre>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- 8. .gitignore e governança -->
+<section>
+  <h2 class="section-title">8. Versionamento, segurança & governança</h2>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <h3>.gitignore essencial</h3>
+      <details>
+        <summary>Ver arquivo</summary>
+<pre># Power BI binários
+*.pbix
+*.pbit
+*.pbi
+~$*.xlsx
+~$*.pbix
+
+# Cache local
+*.tmp
+*.cache
+/bin/
+/obj/
+.vs/
+
+# Secrets
+*.env
+*.env.local
+secrets.json
+service-principal.json
+
+# Dados locais
+/local-data/
+sample-data/private/
+
+# OS
+.DS_Store
+Thumbs.db</pre>
+      </details>
+    </div>
+
+    <div class="card">
+      <h3>Boas práticas de governança</h3>
+      <p><b>Service Principal por ambiente.</b> Um para Dev, um para Test, um para Prod. Rotação trimestral via Azure Key Vault.</p>
+      <p style="margin-top:8px"><b>RLS versionado no TMDL.</b> Roles e regras de segurança ficam no modelo, auditáveis no Git.</p>
+      <p style="margin-top:8px"><b>Conventional Commits.</b> <code>feat:</code>, <code>fix:</code>, <code>perf:</code>, <code>chore:</code> — facilita changelog automático.</p>
+      <p style="margin-top:8px"><b>Branch policy.</b> Mínimo 1 reviewer, build verde, sem merge direto em <code>main</code>.</p>
+      <p style="margin-top:8px"><b>Documentação obrigatória.</b> Toda nova medida tem comentário TMDL + entrada no <code>data-dictionary.md</code>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 9. Roadmap -->
+<section>
+  <h2 class="section-title">9. Roadmap sugerido para adoção</h2>
+  <div class="pipeline">
+    <div class="stage">
+      <h5>Fase 0 · Setup</h5>
+      <p>Habilitar PBIP no Desktop, instalar VS Code + extensions, criar repo, .gitignore, README.</p>
+    </div>
+    <div class="stage">
+      <h5>Fase 1 · Fundação</h5>
+      <p>Migrar 1 projeto-piloto pra PBIP, criar service principal Dev, primeiro deploy via REST.</p>
+    </div>
+    <div class="stage">
+      <h5>Fase 2 · CI/CD</h5>
+      <p>Montar pipeline completo (build/test/deploy), branch policies, DAX smoke tests.</p>
+    </div>
+    <div class="stage">
+      <h5>Fase 3 · Multi-ambiente</h5>
+      <p>Promover Test/Prod, RLS versionado, alerts de refresh, dashboards de saúde.</p>
+    </div>
+    <div class="stage">
+      <h5>Fase 4 · Escala</h5>
+      <p>Migrar demais projetos, templates reutilizáveis, integração com Fabric se aplicável.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10. Riscos & mitigações -->
+<section>
+  <h2 class="section-title">10. Riscos & mitigações</h2>
+  <table>
+    <thead>
+      <tr><th>Risco</th><th>Impacto</th><th>Mitigação</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>PBIP ainda em preview</td><td>Schema pode mudar entre versões</td><td>Fixar versão do Power BI Desktop, monitorar release notes, manter pbi-tools atualizado</td></tr>
+      <tr><td>Conflitos de merge em TMDL</td><td>Tempo gasto em resolução manual</td><td>Treinamento em TMDL, PRs pequenos, owners claros por área do modelo</td></tr>
+      <tr><td>Service principal comprometido</td><td>Acesso indevido a workspaces</td><td>Rotação de segredo, IP allowlist, alerts de uso anômalo, escopo mínimo</td></tr>
+      <tr><td>Refresh falhar em Prod</td><td>Relatórios sem dados</td><td>Smoke tests no pipeline, alertas via Power BI + Teams, runbook documentado</td></tr>
+      <tr><td>Adoção do time</td><td>Resistência cultural, retorno ao PBIX</td><td>Onboarding hands-on, docs claras, vitórias rápidas com projeto-piloto</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 11. Multi-projeto -->
+<section>
+  <h2 class="section-title">11. Multi-projeto · Escala do portfolio</h2>
+  <p class="sub" style="margin-bottom:18px">A arquitetura é adaptativa a múltiplos BIs. Você não recria tudo a cada novo projeto — usa este scaffolding como <b>Template Repo</b> e escolhe 1 dos 3 padrões abaixo.</p>
+
+  <div class="grid cols-3">
+    <div class="card">
+      <h3>① Monorepo</h3>
+      <p>Tudo num único repositório. Cada BI é uma pasta (<code>vendas/</code>, <code>estoque/</code>, <code>rh/</code>).</p>
+      <p style="margin-top:8px">✅ Pipeline único, PRs cruzados, padrão único<br>❌ Cresce muito, CI roda tudo, sem acesso granular</p>
+      <span class="tag">1–5 projetos</span>
+    </div>
+    <div class="card">
+      <h3>② Template + Polyrepo ⭐</h3>
+      <p>Este scaffolding vira <b>Template Repo</b>. Cada novo BI é um <code>Use this template</code> → repo independente.</p>
+      <p style="margin-top:8px">✅ Isolamento total, CI leve, acesso granular<br>❌ Padrões podem divergir (mitigado por auditoria)</p>
+      <span class="tag acc3">5–15 projetos</span>
+    </div>
+    <div class="card">
+      <h3>③ Federado ⭐⭐</h3>
+      <p>Template + <b>bi-shared-library</b> central (TMDL, scripts, CI/CD). Projetos consomem via submodule.</p>
+      <p style="margin-top:8px">✅ Padrão único versionado, fix de bug propaga em 1 PR<br>❌ Setup inicial mais elaborado</p>
+      <span class="tag acc2">15+ projetos</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>📦 Como o bi-shared-library funciona (padrão Federado)</h3>
+    <div class="grid cols-2">
+      <div>
+        <p><b>1 repositório central, consumido por todos</b></p>
+        <pre style="background:#0a0f24;padding:12px;border-radius:8px;overflow:auto;font-size:12px;color:#a5e8f6">
+bi-shared-library/                    (repo central, SemVer)
+├── padroes/                          naming, DAX patterns, ADRs
+├── tmdl/                             d_calendario, _util_*, _fx_*
+├── scripts-ps1/                      publish, refresh, extract, compile
+├── ci-cd/                            reusable workflows (validate.yml)
+└── templates/                        PR template, workspace bootstrap
+
+bi-vendas/                            (projeto)
+├── tools/shared-lib → submodule       aponta pra bi-shared-library
+├── src/datasets/
+├── .github/workflows/                 → uses: shared-lib/validate@v2
+└── README.md</pre>
+      </div>
+      <div>
+        <p><b>Catalog central · portfolio/catalog/projects.json</b></p>
+        <pre style="background:#0a0f24;padding:12px;border-radius:8px;overflow:auto;font-size:12px;color:#a5e8f6">{
+  "version": "1.0.0",
+  "projects": [
+    {
+      "id": "bi-vendas",
+      "name": "Vendas",
+      "repo": "github.com/org/bi-vendas",
+      "template": "github.com/org/bi-template",
+      "sharedLibraryRef": "v2.1.0",
+      "environments": { "dev": {...}, "test": {...}, "prod": {...} },
+      "stakeholders": { "owner": "...", "steward": "..." },
+      "currentVersion": "1.4.0",
+      "status": "active"
+    },
+    { "id": "bi-estoque", ... },
+    { "id": "bi-rh", ... }
+  ],
+  "sharedLibrary": {
+    "version": "2.1.0",
+    "components": [...]
+  }
+}</pre>
+        <p style="margin-top:8px">Catálogo com <b>schema JSON validável</b>. Auditoria mensal compara o estado real vs o esperado.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>🔁 Onboarding de novo projeto BI · checklist</h3>
+    <div class="grid cols-2" style="margin-top:12px">
+      <div>
+        <p style="color:#10b981"><b>⏱️ Tempo: meio período a 1 dia</b></p>
+        <ol style="margin:0;padding-left:20px;color:var(--muted);font-size:13px;line-height:1.9">
+          <li>Criar repo a partir do <b>bi-template</b> (1 click)</li>
+          <li>Preencher <code>deploy/{dev,test,prod}/config.json</code></li>
+          <li>Criar 3 service principals (um por ambiente)</li>
+          <li>Criar 3 workspaces no Power BI Service</li>
+          <li>Configurar segredos no GitHub/Azure DevOps</li>
+          <li>Adicionar submodule <code>tools/shared-lib</code></li>
+        </ol>
+      </div>
+      <div>
+        <p style="color:#22d3ee"><b>🎯 O que sai pronto de fábrica</b></p>
+        <ul style="margin:0;padding-left:20px;color:var(--muted);font-size:13px;line-height:1.9">
+          <li>Estrutura de pastas padrão (src, tests, deploy, scripts)</li>
+          <li>Configurações do VS Code (settings, extensions, gitattributes)</li>
+          <li>CI/CD consumindo reusable workflows da shared-lib</li>
+          <li>PR template com checklist de validação</li>
+          <li>Conventions de nomenclatura e data-dictionary vazio</li>
+          <li>Scripts PowerShell (extract, compile, publish, refresh)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12. Camada AI (MCP + ORM + Guardrails) -->
+<section>
+  <h2 class="section-title">12. Camada AI-Augmented · MCP + ORM + Guardrails</h2>
+  <p class="sub" style="margin-bottom:18px">Adiciona IA sobre a arquitetura: <b>MCP server</b> como ponte IDE↔Power BI, <b>ORM semântico</b> para manipular o modelo via Python, <b>Direct Query</b> em tempo real via XMLA, e <b>guardrails</b> de segurança rigorosos (7 camadas).</p>
+
+  <!-- Fluxo AI -->
+  <div class="layer">
+    <div class="box">
+      <h4><span class="ico">👤</span> 1 · Dev no VSCode</h4>
+      <p>Conversa natural com AI (Cline/Continue/Claude). Pede medida, altera modelo, valida hipótese.</p>
+      <span class="tag">NL interface</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">🔌</span> 2 · Cliente MCP</h4>
+      <p>Cline/Continue. Carrega config dos tools, faz requests via stdio/SSE/HTTP.</p>
+      <span class="tag acc2">MCP protocol</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">🧠</span> 3 · MCP Server (Azure)</h4>
+      <p>Python + FastMCP. Roda em Azure Container Apps. Tools, Resources, Prompts. Guardrails: RBAC + DLP + audit + rate limit.</p>
+      <span class="tag acc3">10+ tools</span><span class="tag warn">7 guardrails</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">🔍</span> 4 · Direct Query (XMLA)</h4>
+      <p>Conexão persistente com XMLA endpoint. Latência ~200-800ms. Read-only por padrão.</p>
+      <span class="tag">Premium/PPU</span><span class="tag">Real-time</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">🗂️</span> 5 · ORM SDK (Python)</h4>
+      <p><code>powerbi-orm</code>: classes fluentes para Tables, Measures, Relationships, RLS. Read+write via git PR.</p>
+      <span class="tag acc2">Pydantic</span><span class="tag acc2">TMDL/TOM</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">📚</span> 6 · Knowledge (RAG)</h4>
+      <p>Azure AI Search. Indexa data-dict, ADRs, past PRs. AI responde com contexto do negócio.</p>
+      <span class="tag acc3">Hybrid search</span>
+    </div>
+    <div class="arrow">➜</div>
+    <div class="box">
+      <h4><span class="ico">☁️</span> 7 · Power BI Service</h4>
+      <p>Workspaces isolados: Dev · Test · <b>AI-Playground</b> · Prod. AI nunca toca Prod diretamente.</p>
+      <span class="tag warn">Sandbox</span>
+    </div>
+  </div>
+
+  <!-- 7 camadas de guardrails -->
+  <div class="card" style="margin-top:18px">
+    <h3>🛡️ Guardrails · 7 camadas de segurança (defense in depth)</h3>
+    <p>Mesmo que uma camada falhe, as outras protegem. Falha de uma não compromete o todo.</p>
+    <div class="grid cols-4" style="margin-top:14px">
+      <div class="card">
+        <h3>1 · Network</h3>
+        <p>VNet + Private Endpoint + WAF. Sem IP público. TLS 1.3.</p>
+        <span class="tag">Infra</span>
+      </div>
+      <div class="card">
+        <h3>2 · Auth</h3>
+        <p>OAuth2 SP + Key Vault. Rotação 90 dias. JWT do user validado.</p>
+        <span class="tag">Auth</span>
+      </div>
+      <div class="card">
+        <h3>3 · RBAC</h3>
+        <p>5 roles Azure AD. Workspace allowlist por user. Permissões mínimas.</p>
+        <span class="tag acc2">Auth</span>
+      </div>
+      <div class="card">
+        <h3>4 · Classification</h3>
+        <p>Cada tool tem risk-level: safe · moderate · dangerous · critical.</p>
+        <span class="tag acc2">App</span>
+      </div>
+      <div class="card">
+        <h3>5 · Approval</h3>
+        <p>Single-use tokens, 15min TTL. Prod exige 2 approvers. PR review para moderate.</p>
+        <span class="tag acc3">App</span>
+      </div>
+      <div class="card">
+        <h3>6 · Audit</h3>
+        <p>Log imutável, 7 anos. Toda ação: user, tool, args, output, custo.</p>
+        <span class="tag acc3">App</span>
+      </div>
+      <div class="card">
+        <h3>7 · Rate Limit</h3>
+        <p>Por user, por tool, por custo. Redis sliding window. Auto-pause em abuso.</p>
+        <span class="tag warn">App</span>
+      </div>
+      <div class="card">
+        <h3>+ DLP</h3>
+        <p>Detecta PII (CPF, CNPJ, email, cartão) em input e output. Redact ou bloqueia.</p>
+        <span class="tag danger">App</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ferramentas MCP -->
+  <div class="card" style="margin-top:18px">
+    <h3>🔧 Tools MCP · catálogo e classificação de risco</h3>
+    <table>
+      <thead>
+        <tr><th>Risk</th><th>Tool</th><th>O que faz</th><th>Approval</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag">🟢 safe</span></td><td><code>pbi_list_datasets</code></td><td>Lista datasets do workspace</td><td>Não</td></tr>
+        <tr><td><span class="tag">🟢 safe</span></td><td><code>pbi_get_model_schema</code></td><td>Retorna TMDL resumido</td><td>Não</td></tr>
+        <tr><td><span class="tag">🟢 safe</span></td><td><code>pbi_query_dax</code></td><td>Executa DAX (SELECT only, max 10k rows)</td><td>Não</td></tr>
+        <tr><td><span class="tag">🟢 safe</span></td><td><code>pbi_format_dax</code></td><td>Formata código DAX</td><td>Não</td></tr>
+        <tr><td><span class="tag">🟢 safe</span></td><td><code>pbi_search_dictionary</code></td><td>Busca semântica no data-dict + ADRs</td><td>Não</td></tr>
+        <tr><td><span class="tag acc2">🟡 moderate</span></td><td><code>pbi_validate_dax_syntax</code></td><td>Valida sintaxe antes de aplicar</td><td>Não</td></tr>
+        <tr><td><span class="tag acc2">🟡 moderate</span></td><td><code>pbi_suggest_measure</code></td><td>Sugere DAX para regra de negócio</td><td>Não</td></tr>
+        <tr><td><span class="tag warn">🟠 dangerous</span></td><td><code>pbi_propose_measure_update</code></td><td>Cria branch + PR com medida nova</td><td>PR review</td></tr>
+        <tr><td><span class="tag warn">🟠 dangerous</span></td><td><code>pbi_propose_relationship</code></td><td>Cria PR com relacionamento</td><td>PR review</td></tr>
+        <tr><td><span class="tag danger">🔴 critical</span></td><td><code>pbi_apply_approved_change</code></td><td>Aplica mudança aprovada em Prod</td><td>Token + 2 approvers</td></tr>
+        <tr><td><span class="tag danger">🔴 critical</span></td><td><code>pbi_refresh_dataset</code></td><td>Dispara refresh em workspace</td><td>Token</td></tr>
+        <tr><td><span class="tag danger">🔴 critical</span></td><td><code>pbi_modify_rls</code></td><td>Altera role de Row-Level Security</td><td>Token + 2 approvers</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Sandbox + AI-Playground -->
+  <div class="grid cols-2" style="margin-top:18px">
+    <div class="card">
+      <h3>🧪 Sandbox · AI-Playground</h3>
+      <p>Workspace dedicado <b>só pra AI</b>. Isolado. AI não toca em Dev/Test/Prod.</p>
+      <p style="margin-top:8px"><b>Caminho de promoção:</b></p>
+      <pre style="background:#0a0f24;padding:12px;border-radius:8px;overflow:auto;font-size:12.5px;color:#a5e8f6">
+AI-Playground  →  PR no repo  →  validate CI
+        ↓
+   review humano
+        ↓
+   merge em main
+        ↓
+   auto-deploy Dev
+        ↓
+   manual promotion Test/Prod
+</pre>
+    </div>
+    <div class="card">
+      <h3>🧬 Validação de DAX (AI sempre erra)</h3>
+      <p>6 camadas de validação rodam antes de aceitar DAX do AI:</p>
+      <p style="margin-top:8px">1. <b>Sintaxe</b> — pbi-tools compile</p>
+      <p>2. <b>Semântica</b> — executa em sandbox</p>
+      <p>3. <b>Performance</b> — cost estimate &lt; 5s</p>
+      <p>4. <b>Escopo</b> — refs dentro do permitido</p>
+      <p>5. <b>RLS</b> — não vaza com RLS ativo</p>
+      <p>6. <b>Naming</b> — segue convenção</p>
+      <p style="margin-top:8px">Falha em uma? Auto-correção (até 3x). Falhou todas? Reporta pro dev.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 13. Métricas de Sucesso -->
+<section>
+  <h2 class="section-title">13. Métricas de sucesso · o que medir</h2>
+  <div class="grid cols-3">
+    <div class="card">
+      <h3>Produtividade</h3>
+      <p><b>↓ 50%</b> tempo de criação de medida complexa</p>
+      <p style="margin-top:8px"><b>↑ 60%</b> PRs sem retrabalho em review</p>
+      <p style="margin-top:8px"><b>↓ 40%</b> tempo de onboarding de novo dev</p>
+    </div>
+    <div class="card">
+      <h3>Qualidade do AI</h3>
+      <p><b>&gt; 70%</b> AI acceptance rate (DAX aceito em PR)</p>
+      <p style="margin-top:8px"><b>&gt; 90%</b> retrieval accuracy (RAG)</p>
+      <p style="margin-top:8px"><b>&lt; 5%</b> failure rate em validação</p>
+    </div>
+    <div class="card">
+      <h3>Segurança & Custo</h3>
+      <p><b>0</b> incidentes de segurança</p>
+      <p style="margin-top:8px"><b>100%</b> ações auditadas</p>
+      <p style="margin-top:8px"><b>&lt; $100</b> custo de AI por dev/mês</p>
+    </div>
+  </div>
+</section>
+
+<!-- 14. Day in the Life · cenários reais de uso -->
+<section>
+  <h2 class="section-title">14. Day in the life · como você usa isso no dia a dia</h2>
+  <p class="sub" style="margin-bottom:18px">Cenários reais de uso. Cada um é uma conversa natural em português com o AI. O AI orquestra MCP server, ORM, validações e CI/CD por baixo dos panos.</p>
+
+  <!-- Cenário 1: Criar medida -->
+  <div class="card" style="margin-bottom:14px">
+    <h3>🎯 Cenário 1 · Criar uma medida nova (caminho feliz)</h3>
+    <div style="background:#0a0f24;padding:16px;border-radius:8px;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6">
+<div style="color:#7c5cff">👤 Você:</div> "preciso criar uma medida Taxa Recompra 90d — % de clientes que voltaram a comprar em até 90 dias após a primeira compra, só quem tem 2+ compras no ano"
+
+<div style="color:#7c5cff;margin-top:10px">🤖 AI:</div> "Deixa eu confirmar a regra:
+&nbsp;&nbsp;a) Janela de 90d a partir da PRIMEIRA compra no dataset, certo?
+&nbsp;&nbsp;b) Compras canceladas/devolvidas contam?
+&nbsp;&nbsp;c) 1 compra no ano não conta, precisa 2+, certo?"
+
+<div style="color:#7c5cff;margin-top:10px">👤 Você:</div> "isso, isso, isso"
+
+<div style="color:#7c5cff;margin-top:10px">🤖 AI:</div> "Validei em 6 dimensões:
+&nbsp;&nbsp;✅ Sintaxe OK
+&nbsp;&nbsp;✅ Semântica: 12.4% (3.421 de 27.604 clientes)
+&nbsp;&nbsp;✅ Performance: ~340ms
+&nbsp;&nbsp;✅ Escopo: refs permitidas
+&nbsp;&nbsp;✅ RLS: respeita filtro de Vendedor
+&nbsp;&nbsp;✅ Naming: 'Vendas.Taxa Recompra 90d %' ok
+
+&nbsp;&nbsp;PR #127 criado: github.com/org/bi-vendas/pull/127"
+
+<div style="color:#7c5cff;margin-top:10px">👤 Você:</div> [aprova PR no GitHub]
+
+<div style="color:#7c5cff;margin-top:10px">🤖 AI:</div> "Merge detectado. Deploy Dev...
+&nbsp;&nbsp;✅ Build ✓
+&nbsp;&nbsp;✅ Publish ✓
+&nbsp;&nbsp;✅ Refresh ✓
+&nbsp;&nbsp;Deploy concluído em 47s. Medida acessível no report."
+    </div>
+    <p style="margin-top:8px;color:var(--muted);font-size:12.5px">⏱️ <b>Tempo: 8 min</b> (vs 2h escrevendo DAX do zero)</p>
+  </div>
+
+  <!-- Cenário 2: Debug performance -->
+  <div class="card" style="margin-bottom:14px">
+    <h3>🔍 Cenário 2 · Debugar medida lenta</h3>
+    <div style="background:#0a0f24;padding:16px;border-radius:8px;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6">
+<div style="color:#7c5cff">👤 Você:</div> "refresh de Vendas tá em 15min, era 3min. alguma medida nova?"
+
+<div style="color:#7c5cff;margin-top:10px">🤖 AI:</div> "Analisei via DMV. Suspeita principal:
+
+&nbsp;&nbsp;🔴 <b>Vendas.Receita Acumulada YTD</b> — 4.2s (era 0.8s)
+&nbsp;&nbsp;Modificada no PR #115, há 3 dias.
+
+&nbsp;&nbsp;Problema: FILTER(ALL(d_calendario)) com MAX força materializar
+&nbsp;&nbsp;a tabela inteira de calendário (~3650 linhas) por partição.
+
+&nbsp;&nbsp;Versão otimizada:
+&nbsp;&nbsp;Vendas.Receita Acumulada YTD =
+&nbsp;&nbsp;VAR _dtMax = MAX( d_calendario[date] )
+&nbsp;&nbsp;RETURN
+&nbsp;&nbsp;&nbsp;&nbsp;CALCULATE(
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Vendas.Receita Total BRL],
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;d_calendario[date] <= _dtMax,
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DATESYTD( d_calendario[date], "04-30" )
+&nbsp;&nbsp;&nbsp;&nbsp;)
+
+&nbsp;&nbsp;Estima redução de 70% (4.2s → 1.2s). Crio PR?"
+
+<div style="color:#7c5cff;margin-top:10px">👤 Você:</div> "cria"
+
+<div style="color:#7c5cff;margin-top:10px">🤖 AI:</div> "PR #129 criado com otimização. Smoke test adicionado."
+    </div>
+    <p style="margin-top:8px;color:var(--muted);font-size:12.5px">⏱️ <b>Tempo: 10 min</b> (vs 4h caçando a causa)</p>
+  </div>
+
+  <!-- Cenário 3: Deploy Prod -->
+  <div class="card" style="margin-bottom:14px">
+    <h3>🚀 Cenário 3 · Deploy em produção (high stakes)</h3>
+    <div style="background:#0a0f24;padding:16px;border-radius:8px;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6">
+<div style="color:#7c5cff">👤 Você:</div> "PR #127 validado em Test. Promover pra Prod."
+
+<div style="color:#7c5cff;margin-top:10px">🤖 AI:</div> "Deploy em Prod é ação <b>CRÍTICA</b>. Requisitos:
+&nbsp;&nbsp;✓ Role BI-AI-Steward
+&nbsp;&nbsp;✓ Smoke tests passaram
+&nbsp;&nbsp;✓ 1+ reviewer aprovou
+&nbsp;&nbsp;⏳ Approval token (2/2 aprovações pendentes)
+
+&nbsp;&nbsp;Postando card no Teams..."
+    </div>
+    <div style="background:#0a0f24;padding:16px;border-radius:8px;margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#a5e8f6">
+┌──────────────────────────────────────────────┐
+│ 🚀 AI Deployment Request                    │
+│ PR: #127 · Env: [PROD] Vendas · Req: 2/2    │
+│ [✅ Aprovar] [❌ Rejeitar] [🔍 Revisar]     │
+└──────────────────────────────────────────────┘
+    </div>
+    <div style="background:#0a0f24;padding:16px;border-radius:8px;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6">
+<div style="color:#7c5cff">👤 Stewards:</div> [aprovam via Teams]
+
+<div style="color:#7c5cff;margin-top:10px">🤖 AI:</div> "2/2 aprovações. Prosseguindo.
+
+&nbsp;&nbsp;✅ Build Prod
+&nbsp;&nbsp;✅ Smoke tests
+&nbsp;&nbsp;✅ Publish to [PROD] Vendas
+&nbsp;&nbsp;✅ Refresh incremental (8s, vs full: 3min)
+&nbsp;&nbsp;✅ RLS testado: 3 roles, 0 vazamentos
+
+&nbsp;&nbsp;Deploy concluído em 2min 14s. Monitorando 24h."
+    </div>
+    <p style="margin-top:8px;color:var(--muted);font-size:12.5px">⏱️ <b>Tempo: 3 min</b> (vs 30min com emails + manual)</p>
+  </div>
+
+  <!-- 4-col grid com outros cenários -->
+  <div class="grid cols-2" style="margin-top:18px">
+    <div class="card">
+      <h3>🆕 Cenário 4 · Onboarding de dev novo</h3>
+      <p>Dev novo abre VSCode. Cline pergunta: "Por onde começar?" Oferece tour guiado pelo modelo, ensina padrões via exemplos, aponta débitos técnicos.</p>
+      <p style="margin-top:8px"><b>Resultado:</b> produtividade em 2-3 dias (vs 2 semanas).</p>
+    </div>
+    <div class="card">
+      <h3>🧪 Cenário 5 · Quality check</h3>
+      <p>"roda checks de qualidade em Vendas". AI roda 7 checks em paralelo via XMLA. Detecta 42 pedidos com dt_faturamento &lt; dt_pedido, identifica padrão (vendedor específico), sugere investigar.</p>
+      <p style="margin-top:8px"><b>Resultado:</b> detecta problemas antes de ir pra prod.</p>
+    </div>
+    <div class="card">
+      <h3>📚 Cenário 6 · Auto-documentação</h3>
+      <p>"documenta as medidas sem doc". AI lê 12 TMDLs, gera 12 entries de documentação com fórmula, dependências, RLS, reports que usam. Abre PR único.</p>
+      <p style="margin-top:8px"><b>Resultado:</b> data-dict atualizado em 30min (vs 1 dia).</p>
+    </div>
+    <div class="card">
+      <h3>🔗 Cenário 7 · Cross-impact analysis</h3>
+      <p>"se eu mudar Receita Total BRL, o que quebra?". AI cruza lineage + reports + dataflows + measures dependentes. Retorna 23 reports, 8 dataflows, 12 medidas dependentes. Sugere criar v2 ao invés de modificar.</p>
+      <p style="margin-top:8px"><b>Resultado:</b> decisão informada antes de mexer.</p>
+    </div>
+  </div>
+
+  <!-- AI sabe parar -->
+  <div class="card" style="margin-top:18px;border-left:4px solid #f59e0b">
+    <h3>🛑 Cenário 9 · Quando o AI sabe que não dá (alucinação evitada)</h3>
+    <p>AI tenta gerar "Churn Risk Score" baseado em RFM. Falha 3x: perf ruim, ref inválida, RLS leak. <b>Em vez de tentar 4ª vez, AI para e diz:</b></p>
+    <pre style="background:#0a0f24;padding:12px;border-radius:8px;overflow:auto;font-size:12.5px;color:#fcd9a3;margin-top:8px">"3 tentativas esgotadas. Recomendo abordagem diferente:
+pré-calcular RFM em Power Query (ETL) e ler via DAX simples.
+Quer que eu (a) documente a análise, (b) tente outra abordagem,
+ou (c) sugira um expert humano?"</pre>
+    <p style="margin-top:8px"><b>Design intencional:</b> AI sabe quando parar e escalar pra humano. É feature, não bug.</p>
+  </div>
+
+  <!-- Cheat sheet -->
+  <div class="card" style="margin-top:18px">
+    <h3>⚡ Cheat sheet · comandos rápidos</h3>
+    <div class="grid cols-2" style="margin-top:10px">
+      <div>
+        <p style="color:#b9a8ff"><b>Exploração</b></p>
+        <pre style="background:#0a0f24;padding:10px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">"lista datasets deste workspace"
+"qual a estrutura de d_cliente?"
+"que reports usam Receita Total BRL?"
+"qual a diferença entre Dev e Prod?"</pre>
+      </div>
+      <div>
+        <p style="color:#b9a8ff"><b>Criação</b></p>
+        <pre style="background:#0a0f24;padding:10px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">"cria medida X que [descrição]"
+"cria relacionamento entre A e B via id"
+"cria role RLS pra [regra]"
+"documenta a medida X"</pre>
+      </div>
+      <div>
+        <p style="color:#b9a8ff"><b>Debug</b></p>
+        <pre style="background:#0a0f24;padding:10px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">"por que o refresh tá lento?"
+"verifica qualidade dos dados de X"
+"essa query tá retornando o valor certo?"
+"testa RLS com role Vendedor"</pre>
+      </div>
+      <div>
+        <p style="color:#b9a8ff"><b>Deploy</b></p>
+        <pre style="background:#0a0f24;padding:10px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">"promove PR #[X] pra Test"
+"gera approval token pra Prod"
+"faz rollback do último deploy"
+"compara Dev vs Prod"</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 15. Ganhos esperados -->
+<section>
+  <h2 class="section-title">15. Ganhos esperados · antes vs depois</h2>
+  <div class="grid cols-4">
+    <div class="card">
+      <h3>Escrever DAX</h3>
+      <p style="font-size:24px;color:#7c5cff;margin:8px 0"><b>30min</b></p>
+      <p style="text-decoration:line-through;color:var(--muted)">Antes: 2h</p>
+    </div>
+    <div class="card">
+      <h3>Debug performance</h3>
+      <p style="font-size:24px;color:#7c5cff;margin:8px 0"><b>10min</b></p>
+      <p style="text-decoration:line-through;color:var(--muted)">Antes: 4h</p>
+    </div>
+    <div class="card">
+      <h3>Onboarding</h3>
+      <p style="font-size:24px;color:#7c5cff;margin:8px 0"><b>3 dias</b></p>
+      <p style="text-decoration:line-through;color:var(--muted)">Antes: 2 semanas</p>
+    </div>
+    <div class="card">
+      <h3>Cross-impact</h3>
+      <p style="font-size:24px;color:#7c5cff;margin:8px 0"><b>2min</b></p>
+      <p style="text-decoration:line-through;color:var(--muted)">Antes: 2h</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;text-align:center;background:linear-gradient(135deg,#1a2456,#0f1530)">
+    <h3>Estimativa agregada de ganho</h3>
+    <p style="font-size:32px;background:linear-gradient(90deg,#7c5cff,#22d3ee);-webkit-background-clip:text;color:transparent;margin:8px 0"><b>30-50% de tempo economizado por dev, por dia</b></p>
+  </div>
+</section>
+
+<!-- 16. Cenário 0 · Primeira conexão (extrair do Power BI existente) -->
+<section>
+  <h2 class="section-title">16. Cenário 0 · Primeira conexão · "Baixa tudo do Power BI pra cá"</h2>
+  <p class="sub" style="margin-bottom:18px">Você tem um Power BI já configurado em produção. Pede pro AI conectar e baixar toda a estrutura pra IDE. O que acontece, o que aparece, o que é tempo real e o que não é.</p>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>💬 A conversa (uma linha)</h3>
+    <div style="background:#0a0f24;padding:16px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;margin-top:8px">
+<div style="color:#7c5cff">👤 Você:</div> "conecta no Power BI Vendas e baixa tudo pra cá"
+    </div>
+    <p style="margin-top:10px;color:var(--muted)">É só isso. O AI faz o resto.</p>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>⚙️ O que o MCP server faz por baixo (9 passos)</h3>
+    <div class="grid cols-3" style="margin-top:10px">
+      <div class="card"><h3>1 · Autentica</h3><p>SP + token OAuth2. Valida permissões no workspace.</p></div>
+      <div class="card"><h3>2 · Lista datasets</h3><p>REST API. Identifica quais são extraíveis.</p></div>
+      <div class="card"><h3>3 · Conecta XMLA</h3><p>pyadomd. Lê TMSCHEMA_* DMVs (tables, columns, measures, relationships, roles, data sources).</p></div>
+      <div class="card"><h3>4 · Extrai TMDL</h3><p>pbi-tools extract. Cria estrutura PBIP padrão.</p></div>
+      <div class="card"><h3>5 · Enriquece</h3><p>Gera overview.yaml, README.md, data-dictionary.md, measure-catalog.md, lineage.md.</p></div>
+      <div class="card"><h3>6 · Aplica padrões</h3><p>Valida contra naming-conventions. Formata DAX. Reporta desvios.</p></div>
+      <div class="card"><h3>7 · Gitignore</h3><p>Ignora .pbi/ (cache). Mantém TMDL versionado.</p></div>
+      <div class="card"><h3>8 · Commit inicial</h3><p>git init + add + commit. NÃO faz push (aguarda review).</p></div>
+      <div class="card"><h3>9 · Reporta</h3><p>Arquivos criados, estatísticas, avisos, próximos passos.</p></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>📁 Estrutura que aparece na IDE</h3>
+    <pre style="background:#0a0f24;padding:18px;border-radius:8px;overflow:auto;font-size:12.5px;color:#cfd6f0;line-height:1.6">
+<span class="dir">src/datasets/Vendas.Dataset/</span>
+│
+├── <span class="file">.pbip</span>                       <span class="note">← abre no Power BI Desktop</span>
+├── <span class="file">README.md</span>                   <span class="note">← GERADO pelo AI (overview humano)</span>
+├── <span class="file">overview.yaml</span>               <span class="note">← GERADO (machine-readable summary)</span>
+│
+├── <span class="dir">definition/</span>
+│   ├── <span class="file">version.json</span>
+│   ├── <span class="file">model.tmdl</span>
+│   ├── <span class="file">relationships.tmdl</span>       <span class="note">← 12 relacionamentos</span>
+│   ├── <span class="file">expressions.tmdl</span>         <span class="note">← parâmetros</span>
+│   ├── <span class="dir">tables/</span>
+│   │   ├── <span class="file">d_calendario.tmdl</span>
+│   │   ├── <span class="file">d_cliente.tmdl</span>
+│   │   ├── <span class="file">d_produto.tmdl</span>
+│   │   ├── <span class="file">d_vendedor.tmdl</span>
+│   │   ├── <span class="file">f_vendas__pedido.tmdl</span>
+│   │   ├── <span class="file">f_vendas__item.tmdl</span>
+│   │   ├── <span class="file">f_metas.tmdl</span>
+│   │   └── <span class="file">_util_business_days.tmdl</span>
+│   ├── <span class="dir">roles/</span>                   <span class="note">← 1 por RLS role</span>
+│   │   ├── <span class="file">GerenteRegional.tmdl</span>
+│   │   ├── <span class="file">Vendedor.tmdl</span>
+│   │   └── <span class="file">Auditor.tmdl</span>
+│   └── <span class="dir">cultures/</span>
+│       └── <span class="file">pt-BR.tmdl</span>           <span class="note">← traduções</span>
+│
+├── <span class="dir">dataSources/</span>                <span class="note">← conexões</span>
+│   ├── <span class="file">SQL-DW-Vendas.tmdl</span>
+│   └── <span class="file">Excel-Metas.tmdl</span>
+│
+├── <span class="dir">.pbi/</span>                       <span class="note">← cache (GITIGNORED)</span>
+│
+└── <span class="dir">docs/</span>                       <span class="note">← GERADO pelo AI</span>
+    ├── <span class="file">data-dictionary.md</span>
+    ├── <span class="file">measure-catalog.md</span>
+    └── <span class="file">lineage.md</span></pre>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>📊 overview.yaml (exemplo do que o AI gera)</h3>
+    <pre style="background:#0a0f24;padding:14px;border-radius:8px;overflow:auto;font-size:12px;color:#a5e8f6">
+schema:
+  tables: 8
+  columns: 87
+  measures: 47
+  relationships: 12
+  roles: 3
+  data_sources: 2
+
+measures_by_folder:
+  Vendas/Receita: 16
+  Vendas/Margem: 12
+  Vendas/Operacional: 8
+  Vendas/Estoque: 6
+  Vendas/Outros: 5
+
+rl_roles:
+  - name: GerenteRegional
+    members: 5
+  - name: Vendedor
+    members: 180
+  - name: Auditor
+    members: 3
+
+dependents:
+  reports: 23
+  dataflows: 4
+
+warnings:
+  - "8 medidas não seguem convenção de nomenclatura"
+  - "RLS 'Vendedor' tem 180 members hardcoded"</pre>
+  </div>
+
+  <!-- Tempo real: tabela de cenários -->
+  <div class="card">
+    <h3>⏱️ "Tempo real" — o que funciona e o que não</h3>
+    <table>
+      <thead>
+        <tr><th>Cenário</th><th>Tempo real?</th><th>Como funciona</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Desktop com .pbip</b> + VSCode</td><td><span class="tag acc3">✅ Sim, parcial</span></td><td>File watcher. VSCode vê saves do Desktop e vice-versa (próximo refresh).</td></tr>
+        <tr><td><b>Desktop com .pbix</b> (antigo)</td><td><span class="tag danger">❌ Não</span></td><td>PBIX é binário e bloqueado. Migrar pra PBIP primeiro via <code>extract-pbip.ps1</code>.</td></tr>
+        <tr><td><b>Só Power BI Service</b></td><td><span class="tag danger">❌ Não (é pull)</span></td><td>MCP extrai sob demanda. Mudanças locais vão via git/CI.</td></tr>
+        <tr><td><b>Service muda enquanto você edita</b></td><td><span class="tag danger">❌ Não</span></td><td>Última escrita vence. <code>git pull</code> antes de editar.</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:10px"><b>Regra de ouro:</b> com PBIP local, dá pra editar em VSCode e Desktop simultaneamente. Sem PBIP (só Service), é ciclo pull/edit/push via git.</p>
+  </div>
+</section>
+
+<!-- 17. Pacote de Implementação · código real -->
+<section>
+  <h2 class="section-title">17. 📦 Pacote de Implementação · código real, pronto pra rodar</h2>
+  <p class="sub" style="margin-bottom:18px">Não é mais spec. É código Python completo, testado, deployável. Estrutura monorepo com MCP server, ORM SDK, extract script, bootstrap e configs de IDE.</p>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>🗂️ Estrutura do pacote</h3>
+    <pre style="background:#0a0f24;padding:18px;border-radius:8px;overflow:auto;font-size:12.5px;color:#cfd6f0;line-height:1.7">
+<span class="dir">bi-ide-architecture/</span>
+│
+├── <span class="dir">mcp/</span>
+│   └── <span class="dir">powerbi-mcp-server/</span>            <span class="note"># 🧠 MCP SERVER (Python + FastMCP)</span>
+│       ├── <span class="file">pyproject.toml</span>
+│       ├── <span class="file">Dockerfile</span>
+│       ├── <span class="file">.env.example</span>
+│       ├── <span class="dir">src/powerbi_mcp/</span>
+│       │   ├── <span class="file">server.py</span>             <span class="note"># entrypoint + 12 tools</span>
+│       │   ├── <span class="file">config.py</span>             <span class="note"># settings (env vars)</span>
+│       │   ├── <span class="file">cli.py</span>                <span class="note"># admin CLI (token issue/approve)</span>
+│       │   ├── <span class="dir">auth/</span>
+│       │   │   └── <span class="file">azure_ad.py</span>        <span class="note"># OAuth2 SP + JWT</span>
+│       │   ├── <span class="dir">guardrails/</span>           <span class="note"># 7 camadas de proteção</span>
+│       │   │   ├── <span class="file">rbac.py</span>            <span class="note"># 5 roles, 11 permissions</span>
+│       │   │   ├── <span class="file">rate_limit.py</span>      <span class="note"># Redis sliding window</span>
+│       │   │   ├── <span class="file">audit.py</span>           <span class="note"># structured logs</span>
+│       │   │   ├── <span class="file">dlp.py</span>             <span class="note"># PII detection (CPF/CNPJ/email)</span>
+│       │   │   └── <span class="file">approval.py</span>       <span class="note"># tokens single-use 15min</span>
+│       │   └── <span class="dir">validation/</span>
+│       │       └── <span class="file">dax_validator.py</span>   <span class="note"># 6-dimension DAX check</span>
+│       └── <span class="dir">tests/</span>                   <span class="note"># pytest unit tests</span>
+│
+├── <span class="dir">tools/</span>
+│   └── <span class="dir">orm/</span>                          <span class="note"># 🗂️ ORM SDK (powerbi-orm)</span>
+│       ├── <span class="file">pyproject.toml</span>
+│       ├── <span class="dir">src/powerbi_orm/</span>
+│       │   ├── <span class="file">dataset.py</span>           <span class="note"># root class + connect + commit</span>
+│       │   ├── <span class="file">table.py</span>             <span class="note"># f_*, d_*, _aux_*</span>
+│       │   ├── <span class="file">column.py</span>            <span class="note"># typed columns</span>
+│       │   ├── <span class="file">measure.py</span>           <span class="note"># DAX measures + TMDL gen</span>
+│       │   ├── <span class="file">relationship.py</span>      <span class="note"># cardinalidade + cross-filter</span>
+│       │   ├── <span class="file">role.py</span>              <span class="note"># RLS roles</span>
+│       │   ├── <span class="file">connection.py</span>        <span class="note"># XMLA + REST</span>
+│       │   ├── <span class="file">query.py</span>             <span class="note"># QueryResult</span>
+│       │   └── <span class="file">expression.py</span>        <span class="note"># DAX + M wrappers</span>
+│       └── <span class="dir">tests/</span>                   <span class="note"># pytest unit tests</span>
+│
+├── <span class="dir">scripts/</span>
+│   ├── <span class="dir">extract/</span>                      <span class="note"># 📥 "baixa tudo do Power BI"</span>
+│   │   └── <span class="file">extract_from_powerbi.py</span>
+│   ├── <span class="dir">bootstrap/</span>                   <span class="note"># 🚀 provisiona Azure</span>
+│   │   └── <span class="file">bootstrap-mcp-infra.ps1</span>
+│   └── <span class="dir">mcp/</span>                        <span class="note"># install/run scripts</span>
+│
+├── <span class="dir">.vscode/</span>
+│   ├── <span class="file">mcp.json</span>                   <span class="note"># config do MCP server</span>
+│   └── <span class="file">cline-prompts.md</span>           <span class="note"># system prompt p/ AI</span>
+│
+└── <span class="dir">[docs existentes]</span>                <span class="note"># arquitetura, guardrails, etc</span>
+    </pre>
+  </div>
+
+  <!-- 3 colunas com o que cada parte faz -->
+  <div class="grid cols-3" style="margin-top:14px">
+    <div class="card">
+      <h3>🧠 MCP Server</h3>
+      <p><b>FastMCP + Python 3.11</b></p>
+      <p style="margin-top:8px">12 tools expostos:</p>
+      <ul style="font-size:12.5px;color:var(--muted);line-height:1.7">
+        <li>5 safe (read-only)</li>
+        <li>2 moderate (validação)</li>
+        <li>1 dangerous (propose PR)</li>
+        <li>2 critical (deploy + token)</li>
+        <li>2 prompts auxiliares</li>
+      </ul>
+      <p style="margin-top:8px">CLI admin pra emitir/aprovar tokens.</p>
+    </div>
+    <div class="card">
+      <h3>🗂️ powerbi-orm</h3>
+      <p><b>Python SDK fluente</b></p>
+      <p style="margin-top:8px">Classes: Dataset, Table, Column, Measure, Relationship, Role.</p>
+      <p style="margin-top:8px">Métodos: connect, query, add_measure, validate, commit.</p>
+      <p style="margin-top:8px">Gera TMDL a partir de objetos Python.</p>
+    </div>
+    <div class="card">
+      <h3>📥 Extract + 🚀 Bootstrap</h3>
+      <p><b>Scripts de operação</b></p>
+      <p style="margin-top:8px"><b>extract:</b> 1 comando baixa Power BI → IDE organizada em pastas.</p>
+      <p style="margin-top:8px"><b>bootstrap:</b> 1 comando cria toda a infra Azure (RG, VNet, Container Apps, Redis, AI Search, KV, 5 AD groups).</p>
+    </div>
+  </div>
+
+  <!-- Comandos de uso -->
+  <div class="card" style="margin-top:14px">
+    <h3>⚡ Comandos de uso (copy-paste)</h3>
+    <div class="grid cols-2" style="margin-top:10px">
+      <div>
+        <p style="color:#b9a8ff"><b>Subir o MCP server local</b></p>
+        <pre style="background:#0a0f24;padding:12px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">cd mcp/powerbi-mcp-server
+pip install -e ".[dev]"
+cp .env.example .env
+# editar .env
+powerbi-mcp --http --port 8000</pre>
+      </div>
+      <div>
+        <p style="color:#b9a8ff"><b>Bootstrap da infra Azure</b></p>
+        <pre style="background:#0a0f24;padding:12px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">./scripts/bootstrap/bootstrap-mcp-infra.ps1 `
+  -SubscriptionId "xxx" `
+  -ResourceGroupName "rg-bi-mcp-dev" `
+  -Environment "dev"</pre>
+      </div>
+      <div>
+        <p style="color:#b9a8ff"><b>Extrair dataset do Power BI</b></p>
+        <pre style="background:#0a0f24;padding:12px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">export PBI_TENANT_ID=xxx
+export PBI_SP_CLIENT_ID=xxx
+export PBI_SP_CLIENT_SECRET=xxx
+python scripts/extract/extract_from_powerbi.py \
+  --workspace "bi-vendas-prod" \
+  --dataset "Vendas.Dataset" \
+  --generate-docs --git-commit</pre>
+      </div>
+      <div>
+        <p style="color:#b9a8ff"><b>Usar o ORM no Python</b></p>
+        <pre style="background:#0a0f24;padding:12px;border-radius:6px;overflow:auto;font-size:12px;color:#a5e8f6">from powerbi_orm import Dataset, Measure, DAXExpression
+
+ds = Dataset.connect(workspace="bi-vendas-dev", ...)
+ds.tables["f_vendas__pedido"].add_measure(
+    Measure(name="Vendas.Ticket Médio [R$]",
+            expression=DAXExpression("DIVIDE(...)"))
+)
+ds.commit(branch="feat/ticket",
+          message="feat: ticket médio",
+          create_pr=True)</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Testes -->
+  <div class="card" style="margin-top:14px">
+    <h3>✅ Testes incluídos</h3>
+    <div class="grid cols-3" style="margin-top:10px">
+      <div>
+        <p><b>test_validation.py</b></p>
+        <p style="font-size:12.5px;color:var(--muted)">7 testes: naming, sintaxe, semântica, scope, performance, RLS, markdown report</p>
+      </div>
+      <div>
+        <p><b>test_rbac.py</b></p>
+        <p style="font-size:12.5px;color:var(--muted)">9 testes: 5 roles, 11 permissions, workspace allowlist, DLP</p>
+      </div>
+      <div>
+        <p><b>test_orm.py</b></p>
+        <p style="font-size:12.5px;color:var(--muted)">15+ testes: DAXExpression, Measure, Column, Table, Relationship, Role, Dataset</p>
+      </div>
+    </div>
+    <p style="margin-top:10px"><b>Total: 30+ testes unitários</b> cobrindo naming convention, validação de DAX, RBAC, DLP, ORM operations.</p>
+  </div>
+
+  <!-- Métricas do pacote -->
+  <div class="card" style="margin-top:14px;background:linear-gradient(135deg,#1a2456,#0f1530)">
+    <h3>📊 Números do pacote</h3>
+    <div class="grid cols-4" style="margin-top:10px">
+      <div style="text-align:center">
+        <div style="font-size:32px;color:#7c5cff"><b>40+</b></div>
+        <div style="font-size:12.5px;color:var(--muted)">arquivos Python</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:32px;color:#22d3ee"><b>3.5k</b></div>
+        <div style="font-size:12.5px;color:var(--muted)">linhas de código</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:32px;color:#10b981"><b>30+</b></div>
+        <div style="font-size:12.5px;color:var(--muted)">testes unitários</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:32px;color:#f59e0b"><b>7</b></div>
+        <div style="font-size:12.5px;color:var(--muted)">camadas de guardrail</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer style="padding:24px 64px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);text-align:center">
+  Documento de arquitetura · Desenho & mapeamento da estrutura de desenvolvimento BI no padrão IDE
+</footer>
+
+</body>
+</html>

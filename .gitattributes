@@ -1,0 +1,39 @@
+# ============================================
+# Git attributes — line endings e diffs
+# ============================================
+
+# Normaliza EOL em texto (LF no commit, CRLF no checkout Windows)
+* text=auto eol=lf
+
+# Scripts PowerShell/Batch: CRLF no Windows
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Markdown: LF
+*.md text eol=lf
+
+# JSON / YAML: LF
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.tmdl text eol=lf
+*.pbir text eol=lf
+*.pbip text eol=lf
+
+# Gitignore
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# ============================================
+# Linguagens — para estatísticas do GitHub
+# ============================================
+*.tmdl linguist-language=DAX
+*.dax linguist-language=DAX
+*.pq linguist-language=PowerQuery
+*.m   linguist-language=PowerQuery
+*.pbir linguist-language=JSON
+*.pbip linguist-language=JSON
+*.pbix linguist-language=PowerBI
