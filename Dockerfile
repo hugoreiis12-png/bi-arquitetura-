@@ -1,16 +1,19 @@
 # bi-architecture — imagem única p/ Portainer
 # Serve: powerbi-mcp (HTTP :8000, endpoint MCP em /mcp/) + dax-staff (stdio) +
 # tmdl-gateway (CLI) + pbi-tools. Workspace único via PBI_WORKSPACE_ID (env).
-FROM python:3.11-slim
+# Pinned em bookworm (Debian 12): o repo APT da Microsoft baixado abaixo é
+# para debian/12. A tag "slim" flutuante passou a resolver p/ trixie (Debian 13)
+# e quebra a verificação GPG do repo da Microsoft (codinome incompatível).
+FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     DOTNET_CLI_TELEMETRY_OPTOUT=1
 
-# Sistema: git/curl (repo + healthcheck) + Node 20 (dax-staff) + .NET 8 (pbi-tools)
+# Sistema: git/curl (repo + healthcheck) + Node 20 (dax-staff) + .NET 8 runtime (pbi-tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl ca-certificates gnupg wget \
+    git curl ca-certificates gnupg wget unzip \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
     | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
@@ -20,11 +23,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb \
     && apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
-    dotnet-sdk-8.0 \
+    dotnet-runtime-8.0 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN dotnet tool install --global Microsoft.PowerBI.Tools
-ENV PATH="${PATH}:/root/.dotnet/tools"
+# pbi-tools NÃO está no NuGet (não existe "Microsoft.PowerBI.Tools" nem "pbi-tools"
+# como dotnet tool) — é distribuído como zip standalone via GitHub Releases.
+ARG PBI_TOOLS_VERSION=1.2.0
+RUN wget -q "https://github.com/pbi-tools/pbi-tools/releases/download/${PBI_TOOLS_VERSION}/pbi-tools.core.${PBI_TOOLS_VERSION}_linux-x64.zip" \
+    -O /tmp/pbi-tools.zip \
+    && mkdir -p /opt/pbi-tools \
+    && unzip -q /tmp/pbi-tools.zip -d /opt/pbi-tools \
+    && rm /tmp/pbi-tools.zip \
+    && chmod +x /opt/pbi-tools/pbi-tools.core \
+    && ln -s /opt/pbi-tools/pbi-tools.core /usr/local/bin/pbi-tools
 
 WORKDIR /app
 
