@@ -95,3 +95,13 @@ yarn.lock
 # src/datasets/**/*.cache
 # src/datasets/**/pbi.cache
 # Mas por padrão VERSIONAMOS TUDO (é texto).
+
+# ============================================
+# Gateway local (propostas, tokens, backups) — NUNCA commitar
+# ============================================
+.gateway/
+
+# ============================================
+# Build compilado (gerado por tsc / pbi-tools)
+# ============================================
+/build/

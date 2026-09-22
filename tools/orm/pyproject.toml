@@ -19,10 +19,13 @@ dependencies = [
     "structlog>=24.1.0",
     "python-gitlab>=4.0.0",
     "pygithub>=2.3.0",
-    "pyadomd>=0.1.4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
+# Consulta XMLA ao vivo. Requer .NET + ADOMD.NET no host.
+xmla = [
+    "pyadomd>=0.1.1; sys_platform == 'win32'",
+]
 dev = [
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.7",

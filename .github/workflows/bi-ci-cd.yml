@@ -151,11 +151,12 @@ jobs:
               "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
             }
 
-      - name: Publish datasets to Dev workspace
+      - name: Publish datasets to single workspace (suffix by branch)
         shell: pwsh
         run: |
-          $workspaceId = $env:WORKSPACE_ID_DEV
-          Write-Host "Publishing to Dev workspace $workspaceId"
+          $workspaceId = $env:WORKSPACE_ID
+          if (-not $workspaceId) { $workspaceId = $env:WORKSPACE_ID_DEV }
+          Write-Host "Publishing to single workspace $workspaceId (target dataset by branch suffix)"
           Get-ChildItem -Path src/datasets -Filter *.pbip -Recurse | ForEach-Object {
             & pbi-tools publish $_.DirectoryName `
               --workspace $workspaceId `
@@ -163,6 +164,7 @@ jobs:
               --conflict replace
           }
         env:
+          WORKSPACE_ID: ${{ secrets.WORKSPACE_ID }}
           WORKSPACE_ID_DEV: ${{ secrets.WORKSPACE_ID_DEV }}
 
       - name: Trigger refresh
@@ -202,15 +204,16 @@ jobs:
           Write-Host "Promovendo para ${{ github.event.inputs.target_env }}"
           Write-Host "Aguardando aprovação manual no environment..."
 
-      - name: Publicar
+      - name: Publicar (workspace unico, dataset por sufixo)
         shell: pwsh
         run: |
+          $workspaceId = '${{ secrets.WORKSPACE_ID }}'
           $envMap = @{
-            'test' = @{ WorkspaceId = '${{ secrets.WORKSPACE_ID_TEST }}'; SpId = '${{ secrets.AZURE_SP_TEST_CLIENT_ID }}'; SpSecret = '${{ secrets.AZURE_SP_TEST_CLIENT_SECRET }}' }
-            'prod' = @{ WorkspaceId = '${{ secrets.WORKSPACE_ID_PROD }}'; SpId = '${{ secrets.AZURE_SP_PROD_CLIENT_ID }}'; SpSecret = '${{ secrets.AZURE_SP_PROD_CLIENT_SECRET }}' }
+            'test' = @{ SpId = '${{ secrets.AZURE_SP_TEST_CLIENT_ID }}'; SpSecret = '${{ secrets.AZURE_SP_TEST_CLIENT_SECRET }}'; Suffix = 'Vendas_Test' }
+            'prod' = @{ SpId = '${{ secrets.AZURE_SP_PROD_CLIENT_ID }}'; SpSecret = '${{ secrets.AZURE_SP_PROD_CLIENT_SECRET }}'; Suffix = 'Vendas' }
           }
           $cfg = $envMap['${{ github.event.inputs.target_env }}']
-          Write-Host "Workspace: $($cfg.WorkspaceId)"
+          Write-Host "Workspace (unico): $workspaceId | Dataset: $($cfg.Suffix)"
 
       - name: Notify Teams
         if: always()

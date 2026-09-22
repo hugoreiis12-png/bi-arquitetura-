@@ -1,0 +1,215 @@
+{
+  "version": "1.0.0",
+  "generated_by": "mcp-powerbi-tools",
+  "description": "Regras de auditoria de modelo semântico Power BI (TMDL). Padronizado em português por solicitacao do usuario.",
+  "rules": [
+    {
+      "id": "tabela-oculta-sem-join",
+      "titulo": "Tabela oculta não participa de nenhum join",
+      "escopo": "table",
+      "severidade": "alta",
+      "quando": {
+        "e": [
+          {"propriedadeIgual": {"IsHidden": "true"}},
+          {"naoRelacionada": true}
+        ]
+      },
+      "porque": "Uma tabela oculta que não se conecta a nenhuma outra tabela no modelo não tem impacto na experiência do usuário. Se foi escondida por falta de uso, provavelmente pode ser removida do modelo.",
+      "correcao": "Se a tabela não tem joins, avalie removê-la ou restaurar sua visibilidade caso ainda seja necessária."
+    },
+    {
+      "id": "tabela-oculta-com-medidas",
+      "titulo": "Tabela oculta contém medidas",
+      "escopo": "table",
+      "severidade": "media",
+      "quando": {
+        "e": [
+          {"propriedadeIgual": {"IsHidden": "true"}},
+          {"temFilhos": "measure"}
+        ]
+      },
+      "porque": "Medidas em tabelas ocultas funcionam, mas não aparecem na caixa de campos. Se o usuário precisar usar essas medidas, elas ficarão inacessíveis no visualizador do modelo.",
+      "correcao": "Mova as medidas para uma tabela visível de conveniência (ex.: _Medidas) ou torne a tabela visível."
+    },
+    {
+      "id": "medida-chave-suspeita",
+      "titulo": "Medida com nome de chave primária",
+      "escopo": "measure",
+      "severidade": "alta",
+      "quando": {
+        "e": [
+          {"nomeContemToken": "@chave"},
+          {"nao": {"propriedadeIgual": {"FormatString": "0"}}}
+        ]
+      },
+      "porque": "Uma medida que leva nome de chave (ex.: CustomerID) geralmente foi criada por engano — provavelmente alguém mediu uma coluna de chave primária sem perceber. Além de inútil, pode confundir quem consome o modelo.",
+      "correcao": "Exclua a medida, ou se for intencional, adicione uma descrição clara e ajuste o formato."
+    },
+    {
+      "id": "medida-lookups",
+      "titulo": "Medida usa LOOKUPVALUE ou VALUES para junção",
+      "escopo": "measure",
+      "severidade": "media",
+      "quando": {
+        "e": [
+          {"temPropriedade": ["expression"]},
+          {"medidaComLookups": true}
+        ]
+      },
+      "porque": "LOOKUPVALUE e VALUES dentro de uma medida geralmente indica uma lógica de junção que deveria ser feita via relacionamento. Isso duplica trabalho e pode gerar resultados incorretos.",
+      "correcao": "Verifique se a junção pode ser feita por um relacionamento no modelo. Se for intencional, documente na descrição."
+    },
+    {
+      "id": "coluna-calculada-sem-formato",
+      "titulo": "Coluna calculada sem FormatoString definido",
+      "escopo": "column",
+      "severidade": "baixa",
+      "quando": {
+        "e": [
+          {"temPropriedade": ["Source"]},
+          {"faltaPropriedade": ["FormatString"]}
+        ]
+      },
+      "porque": "Colunas calculadas geralmente precisam de formatação explícita (moeda, porcentagem, etc.) para exibição correta nos relatórios.",
+      "correcao": "Adicione uma propriedade FormatString apropriada (ex.: $#,##0.00 para moeda)."
+    },
+    {
+      "id": "coluna-data-sem-hierarquia",
+      "titulo": "Coluna data sem hierarquia associada",
+      "escopo": "column",
+      "severidade": "media",
+      "quando": {
+        "e": [
+          {"nomeCasaRegex": "(?i)(data|date|dt|dia|mes|meses|ano|year|month|day)"},
+          {"faltaPropriedade": ["FormatString"]}
+        ]
+      },
+      "porque": "Colunas de data sem formatação adequada podem confundir o Power BI na criação automática de hierarquias de tempo.",
+      "correcao": "Defina FormatString como Short Date ou Long Date, conforme necessário."
+    },
+    {
+      "id": "coluna-composta-de-calculo",
+      "titulo": "Coluna calculada composta (múltiplas operações)",
+      "escopo": "column",
+      "severidade": "media",
+      "quando": {
+        "expressaoLinhasMaiorQue": 5
+      },
+      "porque": "Colunas calculadas com múltiplas linhas de expressão geralmente indicam lógica complexa que pode ser mais bem expressa como medida ou como coluna simples.",
+      "correcao": "Considere extrair a lógica para uma medida, ou quebre em colunas auxiliares."
+    },
+    {
+      "id": "relacionamento-sem-documentacao",
+      "titulo": "Relacionamento sem descrição",
+      "escopo": "relationship",
+      "severidade": "baixa",
+      "quando": {
+        "semDescricao": true
+      },
+      "porque": "Relacionamentos sem descrição dificultam a manutenção do modelo e o entendimento por novos membros da equipe.",
+      "correcao": "Adicione uma descrição que explique a natureza do relacionamento e sua origem."
+    },
+    {
+      "id": "relacionamento-1-1-suspeita",
+      "titulo": "Relacionamento 1:1 suspeito",
+      "escopo": "relationship",
+      "severidade": "media",
+      "quando": {
+        "propriedadeIgual": {
+          "FromCardinality": "one",
+          "ToCardinality": "one"
+        }
+      },
+      "porque": "Relacionamentos 1:1 são raros e geralmente indicam erro de modelagem. Na maioria das vezes, o correto é 1:N ou N:M.",
+      "correcao": "Verifique se realmente existe um relacionamento 1:1 ou se deveria ser 1:N."
+    },
+    {
+      "id": "role-sem-permissao",
+      "titulo": "Role sem TablePermission definido",
+      "escopo": "role",
+      "severidade": "alta",
+      "quando": {
+        "semFilhos": "tablepermission"
+      },
+      "porque": "Uma role sem permissões de tabela definidas pode ter acesso irrestrito ou nenhum acesso, dependendo da configuração padrão do Power BI.",
+      "correcao": "Defina TablePermissions para cada role que tenha restrições de acesso."
+    },
+    {
+      "id": "perspectiva-muito-grande",
+      "titulo": "Perspectiva com muitas tabelas (>20)",
+      "escopo": "perspective",
+      "severidade": "media",
+      "quando": {
+        "contagemFilhosMaiorQue": ["perspectivetable", 20]
+      },
+      "porque": "Perspectivas com muitas tabelas podem confundir o usuário final e anular o objetivo de simplificação que as perspectivas trazem.",
+      "correcao": "Considere dividir em perspectivas menores ou remover tabelas desnecessárias."
+    },
+    {
+      "id": "expressao-esta-em-pasta-raiz",
+      "titulo": "Expressão compartilhada está na pasta raiz",
+      "escopo": "expression",
+      "severidade": "baixa",
+      "quando": {
+        "propriedadeIgual": {
+          "path": "./"
+        }
+      },
+      "porque": "Expressões compartilhadas na pasta raiz indicam falta de organização. O ideal é agrupá-las em subpastas temáticas.",
+      "correcao": "Organize as expressões em subpastas (ex.: 00-Funcoes, 01-Connexoes)."
+    },
+    {
+      "id": "database-sem-linguistic-metadata",
+      "titulo": "Database sem LinguisticMetadata",
+      "escopo": "database",
+      "severidade": "baixa",
+      "quando": {
+        "semFilhos": "linguisticmetadata"
+      },
+      "porque": "LinguisticMetadata é importante para o funcionamento correto de funcionalidades de Q&A e tradução no Power BI.",
+      "correcao": "Adicione LinguisticMetadata ao database se o modelo usar Q&A ou tradução."
+    },
+    {
+      "id": "tabela-estatica-pode-ser-visivel",
+      "titulo": "Tabela estática sem joins e sem medidas pode ser visível",
+      "escopo": "table",
+      "severidade": "baixa",
+      "quando": {
+        "e": [
+          {"propriedadeIgual": {"IsHidden": "true"}},
+          {"naoRelacionada": true},
+          {"semFilhos": "measure"},
+          {"semFilhos": "hierarchy"}
+        ]
+      },
+      "porque": "Tabelas ocultas sem joins e sem medidas geralmente são auxiliares que podem ser removidas. Se ainda existem, talvez devessem ser visíveis para manter o modelo limpo.",
+      "correcao": "Se a tabela não tem joins, avalie removê-la ou restaurar sua visibilidade caso ainda seja necessária."
+    },
+    {
+      "id": "medida-descricao-obrigatoria",
+      "titulo": "Medida sem descrição (recomendado)",
+      "escopo": "measure",
+      "severidade": "baixa",
+      "quando": {
+        "semDescricao": true
+      },
+      "porque": "Medidas sem documentação ficam difíceis de manter e de entender por membros da equipe.",
+      "correcao": "Adicione uma descrição que explique o cálculo e o contexto de uso."
+    },
+    {
+      "id": "tabela-medida-oculta-deveria-ser-visivel",
+      "titulo": "Tabela de medidas oculta deveria ser visível",
+      "escopo": "table",
+      "severidade": "media",
+      "quando": {
+        "e": [
+          {"propriedadeIgual": {"IsHidden": "true"}},
+          {"temFilhos": "measure"},
+          {"contagemFilhosMaiorQue": ["measure", 3]}
+        ]
+      },
+      "porque": "Uma tabela com muitas medidas ocultas não aparece na caixa de campos, impedindo que o usuário encontre essas medidas no painel de campos.",
+      "correcao": "Torne a tabela visível para que as medidas fiquem acessíveis."
+    }
+  ]
+}

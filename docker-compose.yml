@@ -1,0 +1,74 @@
+# bi-architecture p/ Portainer (Stacks > Add stack > Repository ou Web editor)
+# ---------------------------------------------------------------------------
+# PORTAINER (passo a passo):
+#  1. Stacks > Add stack > nome: bi-architecture > cole este arquivo (Web editor)
+#     ou aponte Repository p/ este repo (compose path: docker-compose.yml).
+#  2. Environment variables (Advanced > ou Stack env): OBRIGATÓRIAS —
+#       PBI_TENANT_ID, PBI_SP_CLIENT_ID, PBI_SP_CLIENT_SECRET,
+#       PBI_WORKSPACE_ID  (workspace único/dinâmico do projeto conectado)
+#     OPCIONAIS —
+#       PBI_WORKSPACE_NAME, PBI_DATASET_NAME=Vendas, MCP_HOST_PORT=8001,
+#       REDIS_URL=redis://redis:6379/0
+#     (NUNCA commite segredos: use o env do Portainer, não .env no repo.)
+#  3. Deploy the stack. Aguarde healthcheck `healthy` em bi-mcp.
+# HOST DESTE STACK: 192.168.0.160 (Portainer neste IP)
+# A porta 8000 do host já está ocupada por outro serviço: publicamos em 8001.
+# CONSUMO VIA MCP (clientes: Cline, Continue, Claude Desktop, VS Code):
+#  - HTTP (rede):  http://192.168.0.160:8001/mcp/  (Streamable HTTP)
+#  - dax-staff (stdio, dentro do container):  node /app/build/index.js
+#  - CLI no container:  docker exec -it bi-mcp tmdl-gateway pull-propose ...
+# ---------------------------------------------------------------------------
+name: bi-architecture
+
+services:
+  bi-mcp:
+    build: .
+    image: bi-architecture:latest
+    container_name: bi-mcp
+    restart: unless-stopped
+    ports:
+      # Host 8001 -> container 8000 (8000 do host ocupada). Troque via MCP_HOST_PORT.
+      - "${MCP_HOST_PORT:-8001}:8000"
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-prod}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8000
+      PBI_TENANT_ID: ${PBI_TENANT_ID:?Defina PBI_TENANT_ID no env do Portainer}
+      PBI_SP_CLIENT_ID: ${PBI_SP_CLIENT_ID:?Defina PBI_SP_CLIENT_ID}
+      PBI_SP_CLIENT_SECRET: ${PBI_SP_CLIENT_SECRET:?Defina PBI_SP_CLIENT_SECRET}
+      PBI_WORKSPACE_ID: ${PBI_WORKSPACE_ID:?Defina PBI_WORKSPACE_ID (único/dinâmico)}
+      PBI_WORKSPACE_NAME: ${PBI_WORKSPACE_NAME:-}
+      PBI_DATASET_NAME: ${PBI_DATASET_NAME:-Vendas}
+      REDIS_URL: redis://redis:6379/0
+      REQUIRE_TWO_APPROVERS_FOR_PROD: "true"
+    volumes:
+      # Trabalho versionado fora da imagem (opcional; comente p/ imagem imutável)
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - bi-repos:/tmp/bi-repos
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket;socket.create_connection(('127.0.0.1',8000),timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: bi-redis
+    restart: unless-stopped
+    volumes:
+      - bi-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bi-repos:
+  bi-redis-data:

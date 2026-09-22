@@ -83,7 +83,7 @@ class Dataset:
         """Connect to a Power BI dataset.
 
         Args:
-            workspace: Workspace ID (or name to be resolved)
+            workspace: Workspace ID unico e dinamico (projeto conectado).
             tenant_id: Azure AD tenant ID
             client_id: Service Principal client ID
             client_secret: Service Principal secret
@@ -254,8 +254,13 @@ class Dataset:
         pr_body: str | None = None,
         create_pr: bool = True,
         repo_path: str | None = None,
+        target_dataset: str | None = None,
     ) -> dict[str, Any]:
         """Commit changes and optionally create a PR.
+
+        A divergencia dev/test/prod acontece so aqui, via sufixo por branch:
+        main -> Vendas | develop -> Vendas_Dev | demais -> Vendas_preview_*.
+        O workspace permanece unico e dinamico.
 
         Args:
             branch: Branch name to create
@@ -264,14 +269,24 @@ class Dataset:
             pr_body: PR body
             create_pr: Whether to create a PR after commit
             repo_path: Path to git repo (defaults to current directory)
+            target_dataset: Override do dataset alvo (default: derivado do branch)
 
         Returns:
-            Dict with branch name, commit SHA, and optionally PR URL
+            Dict with branch name, target dataset, commit SHA, and optionally PR URL
         """
         import subprocess
 
+        from .connection import resolve_dataset_for_branch
+
         repo = Path(repo_path) if repo_path else Path.cwd()
-        result = {"branch": branch, "files_changed": []}
+        resolved_target = target_dataset or resolve_dataset_for_branch(
+            branch, self.name or "Vendas"
+        )
+        result = {
+            "branch": branch,
+            "target_dataset": resolved_target,
+            "files_changed": [],
+        }
 
         # 1. Write TMDL files
         for table in self.tables:

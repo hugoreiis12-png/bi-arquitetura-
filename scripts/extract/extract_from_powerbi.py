@@ -320,6 +320,11 @@ async def main():
         help="Create initial git commit",
     )
     parser.add_argument(
+        "--pbip-layout",
+        action="store_true",
+        help="Normaliza export flat TOM para layout PBIP (definition/tables|cultures|roles, version.json, .pbip)",
+    )
+    parser.add_argument(
         "--commit-message",
         default=None,
         help="Custom commit message (default: 'feat: extract ...')",
@@ -395,6 +400,22 @@ async def main():
         (output_path / "definition").mkdir(exist_ok=True)
         (output_path / "definition" / "tables").mkdir(exist_ok=True)
         (output_path / "definition" / "roles").mkdir(exist_ok=True)
+
+    # Normaliza TOM-flat -> PBIP (idempotente; pula se já for PBIP válido)
+    if args.pbip_layout:
+        print("📐 Normalizando TOM->PBIP...")
+        try:
+            repo_root = Path(__file__).resolve().parents[2]
+            sys.path.insert(0, str(repo_root / "gateway-py" / "src"))
+            from tmdl_gateway.pbip import normalize_tom_to_pbip
+
+            report = normalize_tom_to_pbip(output_path, output_path, target["name"])
+            print(f"   ✓ {report['status']}: {report.get('tabelas', 0)} tabelas em definition/")
+            for w in ("quarentena_auto_dates",):
+                if report.get(w):
+                    print(f"   ⚠ {w}: {report[w]} aquivo(s) em _auto_dates/")
+        except Exception as e:
+            print(f"   ⚠ Normalização falhou (export preservado): {e}")
 
     # Get schema (placeholder)
     schema_meta = extract_via_xmla(args.workspace, target["id"], output_path)

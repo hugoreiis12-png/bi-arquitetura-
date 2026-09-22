@@ -14,6 +14,8 @@ from .rbac import (
     check_permission,
     check_workspace_access,
     extract_user_context,
+    get_user_permissions,
+    resolve_roles,
 )
 
 __all__ = [
@@ -35,4 +37,6 @@ __all__ = [
     "check_permission",
     "check_workspace_access",
     "extract_user_context",
+    "get_user_permissions",
+    "resolve_roles",
 ]

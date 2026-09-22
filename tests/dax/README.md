@@ -30,7 +30,7 @@ ROW(
 
 ## Boas práticas
 
-- ✅ Use medidas nomeadas em vez de cálculos inline (reutilização)
-- ✅ Teste casos extremos: dataset vazio, filtros conflitantes, datas futuras
+- Use medidas nomeadas em vez de cálculos inline (reutilização)
+- Teste casos extremos: dataset vazio, filtros conflitantes, datas futuras
 - ❌ Não faça testes que dependam de volume específico de dados (frágil)
 - ❌ Não use `FILTER` pesado — smoke tests devem ser rápidos

@@ -60,6 +60,7 @@ state = AppState()
 @asynccontextmanager
 async def lifespan(server: FastMCP):
     settings = get_settings()
+    settings.require_credentials()
     state.settings = settings
     state.auth = AzureADAuth(
         tenant_id=settings.azure_tenant_id,
@@ -126,10 +127,18 @@ async def instrumented_tool(
     name: str,
     risk_level: str,
     func,
+    required_permission: Permission | None = None,
+    required_workspace_id: str | None = None,
     *args,
     **kwargs,
 ):
-    """Wrap a tool with guardrails: rate limit + audit + RBAC."""
+    """Wrap a tool with guardrails: rate limit + audit + RBAC.
+
+    When *required_permission* is provided the RBAC check is performed once
+    here, so individual tools no longer need to call ``check_permission()``
+    themselves.  The same applies to *required_workspace_id* which triggers
+    ``check_workspace_access()``.
+    """
     user = await get_user()
     start = time.time()
 
@@ -144,6 +153,14 @@ async def instrumented_tool(
     except Exception as e:
         state.audit.log(name, user, risk_level=risk_level, outcome="denied")
         raise
+
+    # RBAC: permission check (centralized)
+    if required_permission is not None:
+        check_permission(user, required_permission)
+
+    # RBAC: workspace access check (centralized)
+    if required_workspace_id is not None:
+        check_workspace_access(user, required_workspace_id)
 
     # Execute
     try:
@@ -172,7 +189,7 @@ async def instrumented_tool(
 # ============ TOOLS · SAFE (read-only) ============
 
 
-@mcp.tool(risk_level="safe")
+@mcp.tool(tags={"risk:safe"})
 async def pbi_list_datasets(workspace_id: str) -> dict[str, Any]:
     """List datasets in a Power BI workspace. Read-only.
 
@@ -183,10 +200,6 @@ async def pbi_list_datasets(workspace_id: str) -> dict[str, Any]:
         List of datasets with metadata
     """
     async def _execute():
-        user = await get_user()
-        check_permission(user, Permission.READ_METADATA)
-        check_workspace_access(user, workspace_id)
-
         import httpx
 
         token = await state.auth.get_token()
@@ -200,10 +213,14 @@ async def pbi_list_datasets(workspace_id: str) -> dict[str, Any]:
 
         return {"datasets": data.get("value", []), "count": len(data.get("value", []))}
 
-    return await instrumented_tool("pbi_list_datasets", "safe", _execute)
+    return await instrumented_tool(
+        "pbi_list_datasets", "safe", _execute,
+        required_permission=Permission.READ_METADATA,
+        required_workspace_id=workspace_id,
+    )
 
 
-@mcp.tool(risk_level="safe")
+@mcp.tool(tags={"risk:safe"})
 async def pbi_get_model_schema(
     workspace_id: str,
     dataset_id: str,
@@ -220,10 +237,6 @@ async def pbi_get_model_schema(
         Model schema with tables, columns, and optionally measures
     """
     async def _execute():
-        user = await get_user()
-        check_permission(user, Permission.READ_METADATA)
-        check_workspace_access(user, workspace_id)
-
         # In production, use XMLA endpoint or REST API
         # Placeholder: return structure hint
         return {
@@ -234,10 +247,14 @@ async def pbi_get_model_schema(
             "note": "Connect XMLA endpoint to populate. See docs/ai-architecture/mcp-server.md",
         }
 
-    return await instrumented_tool("pbi_get_model_schema", "safe", _execute)
+    return await instrumented_tool(
+        "pbi_get_model_schema", "safe", _execute,
+        required_permission=Permission.READ_METADATA,
+        required_workspace_id=workspace_id,
+    )
 
 
-@mcp.tool(risk_level="safe")
+@mcp.tool(tags={"risk:safe"})
 async def pbi_query_dax(
     workspace_id: str,
     dataset_id: str,
@@ -261,8 +278,6 @@ async def pbi_query_dax(
 
     async def _execute():
         user = await get_user()
-        check_permission(user, Permission.READ_DATA)
-        check_workspace_access(user, workspace_id)
 
         # DLP check on query
         state.dlp.check_input(dax_query, user.roles, context="dax_query")
@@ -286,10 +301,14 @@ async def pbi_query_dax(
             "note": "Connect XMLA endpoint to execute. DLP applied.",
         }
 
-    return await instrumented_tool("pbi_query_dax", "safe", _execute)
+    return await instrumented_tool(
+        "pbi_query_dax", "safe", _execute,
+        required_permission=Permission.READ_DATA,
+        required_workspace_id=workspace_id,
+    )
 
 
-@mcp.tool(risk_level="safe")
+@mcp.tool(tags={"risk:safe"})
 async def pbi_format_dax(dax_code: str) -> dict[str, Any]:
     """Format DAX code following the project conventions.
 
@@ -300,9 +319,6 @@ async def pbi_format_dax(dax_code: str) -> dict[str, Any]:
         Formatted DAX code
     """
     async def _execute():
-        user = await get_user()
-        check_permission(user, Permission.READ_METADATA)
-
         # Simple formatter (in production: use dax-formatter service or library)
         formatted = dax_code.strip()
         return {
@@ -311,10 +327,13 @@ async def pbi_format_dax(dax_code: str) -> dict[str, Any]:
             "note": "Use dax-formatter library or sqlbi.com for production formatting",
         }
 
-    return await instrumented_tool("pbi_format_dax", "safe", _execute)
+    return await instrumented_tool(
+        "pbi_format_dax", "safe", _execute,
+        required_permission=Permission.READ_METADATA,
+    )
 
 
-@mcp.tool(risk_level="safe")
+@mcp.tool(tags={"risk:safe"})
 async def pbi_search_dictionary(query: str, top_k: int = 5) -> dict[str, Any]:
     """Search the data dictionary and ADRs semantically.
 
@@ -326,9 +345,6 @@ async def pbi_search_dictionary(query: str, top_k: int = 5) -> dict[str, Any]:
         Top-K relevant entries
     """
     async def _execute():
-        user = await get_user()
-        check_permission(user, Permission.READ_METADATA)
-
         # In production: query Azure AI Search index
         if not state.settings.ai_search_endpoint:
             return {
@@ -338,13 +354,16 @@ async def pbi_search_dictionary(query: str, top_k: int = 5) -> dict[str, Any]:
 
         return {"results": [], "query": query, "top_k": top_k}
 
-    return await instrumented_tool("pbi_search_dictionary", "safe", _execute)
+    return await instrumented_tool(
+        "pbi_search_dictionary", "safe", _execute,
+        required_permission=Permission.READ_METADATA,
+    )
 
 
 # ============ TOOLS · MODERATE ============
 
 
-@mcp.tool(risk_level="moderate")
+@mcp.tool(tags={"risk:moderate"})
 async def pbi_validate_dax_syntax(
     dax_code: str,
     measure_name: str | None = None,
@@ -359,27 +378,30 @@ async def pbi_validate_dax_syntax(
         ValidationResult as dict (is_valid, checks, errors, warnings, cost)
     """
     async def _execute():
-        user = await get_user()
-        check_permission(user, Permission.VALIDATE_DAX)
-
         result = await state.validator.validate(
             dax_code, syntax_check=True, semantic_check=False, measure_name=measure_name
         )
 
         return {
             "is_valid": result.is_valid,
+            "score": result.score,
             "checks": {k.value: v for k, v in result.checks.items()},
             "errors": result.errors,
             "warnings": result.warnings,
+            "suggestions": result.suggestions,
             "estimated_cost_ms": result.estimated_cost_ms,
+            "semantic_verified": result.semantic_verified,
             "measure_name": result.measure_name,
             "markdown_report": result.to_markdown(),
         }
 
-    return await instrumented_tool("pbi_validate_dax_syntax", "moderate", _execute)
+    return await instrumented_tool(
+        "pbi_validate_dax_syntax", "moderate", _execute,
+        required_permission=Permission.VALIDATE_DAX,
+    )
 
 
-@mcp.tool(risk_level="moderate")
+@mcp.tool(tags={"risk:moderate"})
 async def pbi_suggest_measure(
     description: str,
     table_name: str | None = None,
@@ -394,9 +416,6 @@ async def pbi_suggest_measure(
         Suggested DAX code with validation report
     """
     async def _execute():
-        user = await get_user()
-        check_permission(user, Permission.VALIDATE_DAX)
-
         # In production: call LLM with RAG context + measure templates
         # Placeholder: returns a structured response showing the contract
         return {
@@ -411,13 +430,16 @@ async def pbi_suggest_measure(
             "note": "Integrate with LLM provider (OpenAI / Anthropic) in production",
         }
 
-    return await instrumented_tool("pbi_suggest_measure", "moderate", _execute)
+    return await instrumented_tool(
+        "pbi_suggest_measure", "moderate", _execute,
+        required_permission=Permission.VALIDATE_DAX,
+    )
 
 
 # ============ TOOLS · DANGEROUS (writes metadata via PR) ============
 
 
-@mcp.tool(risk_level="dangerous")
+@mcp.tool(tags={"risk:dangerous"})
 async def pbi_propose_measure_update(
     workspace_id: str,
     dataset_id: str,
@@ -444,10 +466,6 @@ async def pbi_propose_measure_update(
         PR proposal with URL and validation report
     """
     async def _execute():
-        user = await get_user()
-        check_permission(user, Permission.WRITE_MODEL)
-        check_workspace_access(user, workspace_id)
-
         # 1. Validate the DAX first
         validation = await state.validator.validate(
             dax_expression, measure_name=measure_name
@@ -485,13 +503,17 @@ async def pbi_propose_measure_update(
             "note": "Integrate with GitHub API in production to actually create the PR",
         }
 
-    return await instrumented_tool("pbi_propose_measure_update", "dangerous", _execute)
+    return await instrumented_tool(
+        "pbi_propose_measure_update", "dangerous", _execute,
+        required_permission=Permission.WRITE_MODEL,
+        required_workspace_id=workspace_id,
+    )
 
 
 # ============ TOOLS · CRITICAL (require approval token) ============
 
 
-@mcp.tool(risk_level="critical")
+@mcp.tool(tags={"risk:critical"})
 async def pbi_apply_approved_change(
     approval_token: str,
     pr_number: int,
@@ -513,7 +535,6 @@ async def pbi_apply_approved_change(
 
     async def _execute():
         user = await get_user()
-        check_workspace_access(user, target_environment)
 
         required_perm = {
             "dev": Permission.DEPLOY_DEV,
@@ -525,6 +546,17 @@ async def pbi_apply_approved_change(
             return {"error": f"Invalid environment: {target_environment}"}
 
         check_permission(user, required_perm)
+
+        # Resolve o ambiente lógico (dev/test/prod) para o workspace_id real
+        # antes de checar o allowlist — passar "prod" direto nunca casaria com
+        # os padrões `bi-*`.
+        workspace_id = {
+            "dev": state.settings.workspace_dev_id,
+            "test": state.settings.workspace_test_id,
+            "prod": state.settings.workspace_prod_id,
+        }.get(target_environment, "")
+        if workspace_id:
+            check_workspace_access(user, workspace_id)
 
         # Validate approval token
         try:
@@ -550,7 +582,7 @@ async def pbi_apply_approved_change(
     return await instrumented_tool("pbi_apply_approved_change", "critical", _execute)
 
 
-@mcp.tool(risk_level="critical")
+@mcp.tool(tags={"risk:critical"})
 async def pbi_request_approval(
     action: str,
     target: str,
@@ -714,9 +746,13 @@ def _short_id() -> str:
 
 # ============ Main ============
 
+from . import server_tools  # noqa: E402, F401
+from . import tmdl_tools  # noqa: E402, F401
+
 
 def main():
     """Run the MCP server."""
+    import os
     import sys
 
     transport = "stdio"  # default for local dev
@@ -725,7 +761,14 @@ def main():
     elif "--sse" in sys.argv:
         transport = "sse"
 
-    mcp.run(transport=transport)
+    # Container/Portainer: MCP_HOST=0.0.0.0 para expor fora do container.
+    # Default preserva comportamento local (127.0.0.1).
+    host = os.environ.get("MCP_HOST", "127.0.0.1")
+    port = int(os.environ.get("MCP_PORT", "8000"))
+    if transport in ("http", "sse"):
+        mcp.run(transport=transport, host=host, port=port)
+    else:
+        mcp.run(transport=transport)
 
 
 if __name__ == "__main__":

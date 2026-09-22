@@ -1,8 +1,14 @@
 {
   "environment": "dev",
-  "workspaceId": "PUT-YOUR-DEV-WORKSPACE-ID-HERE",
-  "workspaceName": "[DEV] Vendas",
+  "workspaceId": "${PBI_WORKSPACE_ID}",
+  "workspaceName": "${PBI_WORKSPACE_NAME}",
+  "datasetName": "Vendas_Dev",
   "servicePrincipalId": "${PBI_SP_DEV_CLIENT_ID}",
+  "isolation": {
+    "mode": "rls+build",
+    "scope": "dataset-suffix",
+    "note": "Workspace unico dinamico por projeto conectado; desvio por branch/sufixo no commit. Sem workspace por ambiente (derroga ADR-002)."
+  },
   "refreshPolicy": {
     "type": "on-demand",
     "schedule": null,

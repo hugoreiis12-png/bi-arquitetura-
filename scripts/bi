@@ -24,12 +24,23 @@ Variáveis de ambiente:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+# No Windows o console padrão usa cp1252 e não codifica os caracteres de caixa
+# e emoji usados abaixo. Força UTF-8 para o CLI funcionar cross-platform.
+for _stream in (sys.stdout, sys.stderr):
+    _reconfig = getattr(_stream, "reconfigure", None)
+    if _reconfig is not None:
+        try:
+            _reconfig(encoding="utf-8")
+        except (ValueError, OSError):
+            pass
 
 # Cores para output
 class C:
@@ -90,6 +101,8 @@ def cmd_extract(args) -> int:
         cmd.append("--generate-docs")
     if args.git_commit:
         cmd.append("--git-commit")
+    if args.pbip_layout:
+        cmd.append("--pbip-layout")
 
     return subprocess.call(cmd)
 
@@ -119,7 +132,7 @@ def cmd_validate(args) -> int:
         return 0
 
     validator = DAXValidator()
-    result = validator.validate(dax_code, measure_name=args.measure_name)
+    result = asyncio.run(validator.validate(dax_code, measure_name=args.measure_name))
     print(result.to_markdown())
     return 0 if result.is_valid else 1
 
@@ -419,6 +432,7 @@ Para usar como AI agent, abra o VSCode e use Cline/Continue com o MCP server.
     p.add_argument("--output", default="./src/datasets", help="Diretório de saída")
     p.add_argument("--generate-docs", action="store_true", help="Gerar README, overview, data-dict")
     p.add_argument("--git-commit", action="store_true", help="Criar commit inicial")
+    p.add_argument("--pbip-layout", action="store_true", help="Normaliza TOM->PBIP (definition/, version.json, .pbip)")
     p.set_defaults(func=cmd_extract)
 
     # validate

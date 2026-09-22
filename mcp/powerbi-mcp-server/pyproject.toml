@@ -23,14 +23,19 @@ dependencies = [
     "opentelemetry-sdk>=1.25.0",
     "opentelemetry-instrumentation-fastapi>=0.46b0",
     "azure-monitor-opentelemetry-exporter>=1.0.0b23",
-    "pyadomd>=0.1.4; sys_platform == 'win32'",
     "structlog>=24.1.0",
     "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.30.0",
     "starlette>=0.37.0",
+    "powerbi-orm>=0.4.0",
 ]
 
 [project.optional-dependencies]
+# Consulta XMLA ao vivo (execução real de DAX). Requer .NET + ADOMD.NET no host.
+# Opcional: nada no server/testes importa pyadomd no nível de módulo.
+xmla = [
+    "pyadomd>=0.1.1; sys_platform == 'win32'",
+]
 dev = [
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.7",

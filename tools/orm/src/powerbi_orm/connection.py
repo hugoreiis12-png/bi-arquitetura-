@@ -25,14 +25,38 @@ class AuthConfig:
     authority: str = "https://login.microsoftonline.com"
 
 
+def resolve_dataset_for_branch(branch: str, base: str = "Vendas") -> str:
+    """Branch -> dataset (divergencia so no commit). Espelha Settings.dataset_for_branch.
+
+    main -> Vendas | develop -> Vendas_Dev | test/release/* -> Vendas_Test
+    | demais -> Vendas_preview_<slug>.
+    """
+    import re
+
+    b = (branch or "").strip()
+    if b == "main":
+        return base
+    if b == "develop":
+        return f"{base}_Dev"
+    if b == "test" or b.startswith("release/"):
+        return f"{base}_Test"
+    slug = re.sub(r"[^a-z0-9]+", "_", b.lower()).strip("_")[:20].strip("_")
+    return f"{base}_preview_{slug}" if slug else f"{base}_preview"
+
+
 @dataclass
 class Connection:
-    """A connection to Power BI Service (REST + XMLA)."""
+    """A connection to Power BI Service (REST + XMLA).
+
+    workspace_id e unico e dinamico (projeto conectado). O dataset diverge
+    so no commit, via sufixo por branch (ver resolve_dataset_for_branch).
+    """
 
     workspace_id: str
     auth: AuthConfig
     api_base: str = "https://api.powerbi.com"
     timeout: int = 30
+    dataset_name: str = "Vendas"
     _token: str = field(default="", init=False, repr=False)
     _token_expires_at: float = field(default=0.0, init=False, repr=False)
 
@@ -105,7 +129,7 @@ class Connection:
         return (
             f"Provider=MSOLAP;"
             f"Data Source={self.xmla_endpoint};"
-            f"Initial Catalog={self.workspace_id};"
+            f"Initial Catalog={self.dataset_name};"
             f"User ID={self.auth.client_id};"
             f"Password={self.auth.client_secret};"
             f"Persist Security Info=True;"

@@ -9,7 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,18 +30,77 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     #  Azure AD / Power BI 
-    azure_tenant_id: str = Field(..., description="Azure AD tenant ID")
-    pbi_sp_client_id: str = Field(..., description="Service Principal client ID for Power BI")
-    pbi_sp_client_secret: str = Field(..., description="Service Principal secret")
+    # Credenciais têm default vazio para que import e testes não falhem sem
+    # ambiente configurado. A validação real (não-vazio) ocorre no lifespan do
+    # server via require_credentials(), não no import.
+    azure_tenant_id: str = Field(
+        default="",
+        description="Azure AD tenant ID",
+        validation_alias=AliasChoices("PBI_TENANT_ID", "AZURE_TENANT_ID"),
+    )
+    pbi_sp_client_id: str = Field(default="", description="Service Principal client ID for Power BI")
+    pbi_sp_client_secret: str = Field(default="", description="Service Principal secret")
     pbi_authority: str = "https://login.microsoftonline.com"
     pbi_api_base: str = "https://api.powerbi.com"
     pbi_scope: str = "https://analysis.windows.net/powerbi/api/.default"
 
-    #  Workspaces
-    workspace_dev_id: str = ""
-    workspace_test_id: str = ""
-    workspace_prod_id: str = ""
-    workspace_playground_id: str = ""
+    #  Workspace unico dinamico (por projeto conectado) + dataset base.
+    #  O desvio dev/test/prod acontece so no commit, via sufixo por branch.
+    #  IDs legados por ambiente continuam como fallback de leitura.
+    workspace_id: str = Field(
+        default="", validation_alias=AliasChoices("PBI_WORKSPACE_ID", "WORKSPACE_ID")
+    )
+    workspace_name: str = Field(
+        default="", validation_alias=AliasChoices("PBI_WORKSPACE_NAME", "WORKSPACE_NAME")
+    )
+    dataset_name: str = Field(
+        default="Vendas", validation_alias=AliasChoices("PBI_DATASET_NAME", "DATASET_NAME")
+    )
+    workspace_dev_id: str = Field(
+        default="", validation_alias=AliasChoices("PBI_WORKSPACE_DEV_ID", "WORKSPACE_DEV_ID")
+    )
+    workspace_test_id: str = Field(
+        default="", validation_alias=AliasChoices("PBI_WORKSPACE_TEST_ID", "WORKSPACE_TEST_ID")
+    )
+    workspace_prod_id: str = Field(
+        default="", validation_alias=AliasChoices("PBI_WORKSPACE_PROD_ID", "WORKSPACE_PROD_ID")
+    )
+    workspace_playground_id: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "PBI_WORKSPACE_PLAYGROUND_ID", "WORKSPACE_PLAYGROUND_ID"
+        ),
+    )
+
+    def resolve_workspace_id(self) -> str:
+        """Workspace unico: PBI_WORKSPACE_ID primeiro, senão legado por environment."""
+        if self.workspace_id:
+            return self.workspace_id
+        fallback = {
+            "dev": self.workspace_dev_id,
+            "test": self.workspace_test_id,
+            "prod": self.workspace_prod_id,
+        }.get(self.environment, "")
+        return fallback or self.workspace_playground_id
+
+    @staticmethod
+    def dataset_for_branch(branch: str, base: str = "Vendas") -> str:
+        """Mapeia branch -> nome do dataset (divergencia so no commit).
+
+        main -> Vendas | develop -> Vendas_Dev | test/release/* -> Vendas_Test
+        | demais (feat/fix/ai/*) -> Vendas_preview_<slug> (slug max 20 chars).
+        """
+        import re
+
+        b = (branch or "").strip()
+        if b == "main":
+            return base
+        if b == "develop":
+            return f"{base}_Dev"
+        if b == "test" or b.startswith("release/"):
+            return f"{base}_Test"
+        slug = re.sub(r"[^a-z0-9]+", "_", b.lower()).strip("_")[:20].strip("_")
+        return f"{base}_preview_{slug}" if slug else f"{base}_preview"
 
     # Rate Limiting (Redis)
     redis_url: str = "redis://localhost:6379/0"
@@ -75,9 +134,31 @@ class Settings(BaseSettings):
     sandbox_max_rows: int = 10_000
     sandbox_query_timeout_seconds: int = 30
 
-    # Paths 
+    # Paths
     bi_template_repo: str = "https://github.com/org/bi-template"
     repos_base_path: str = "/tmp/bi-repos"
+
+    def require_credentials(self) -> None:
+        """Garante que as credenciais do Service Principal estão presentes.
+
+        Chamado no startup do server (lifespan), não no import — assim testes e
+        ferramentas offline podem instanciar Settings sem ambiente configurado.
+        """
+        missing = [
+            name
+            for name, value in (
+                ("PBI_TENANT_ID", self.azure_tenant_id),
+                ("PBI_SP_CLIENT_ID", self.pbi_sp_client_id),
+                ("PBI_SP_CLIENT_SECRET", self.pbi_sp_client_secret),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError(
+                "Credenciais do Power BI ausentes: "
+                + ", ".join(missing)
+                + ". Configure-as no .env ou nas variáveis de ambiente."
+            )
 
 
 @lru_cache
