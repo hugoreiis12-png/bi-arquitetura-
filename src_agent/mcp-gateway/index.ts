@@ -114,19 +114,26 @@ server.setRequestHandler(GetPromptRequestSchema, async (req) => {
     );
   }
 
-  // Coercer argumentos (string numérica → int, etc.)
+  // Coercer argumentos (string numérica → int, etc.) — apenas para validação
+  // local; o protocolo MCP transporta argumentos de prompt sempre como
+  // string, então repassamos como string (o server Python faz a coerção
+  // de tipo real via @validated_prompt).
   const coerced = coercePromptArgs(promptName, promptArgs);
+  const wireArgs: Record<string, string> = {};
+  for (const [key, value] of Object.entries(coerced)) {
+    wireArgs[key] = String(value);
+  }
 
   // Rotear para backend correto (assume que prompts estão no PBI backend)
   const backend = backends.find((b) => !b.prefix);
   if (!backend) throw new Error("PBI backend não encontrado");
 
   try {
-    return await backend.client.getPrompt({ name: promptName, arguments: coerced });
+    return await backend.client.getPrompt({ name: promptName, arguments: wireArgs });
   } catch (err) {
     console.error(`[gateway] prompt falhou ${promptName}:`, err);
     await reconnect(backend, "powerbi-mcp");
-    return await backend.client.getPrompt({ name: promptName, arguments: coerced });
+    return await backend.client.getPrompt({ name: promptName, arguments: wireArgs });
   }
 });
 
