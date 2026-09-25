@@ -1,7 +1,5 @@
 """Power BI MCP Server — main entrypoint.
 
-Exposes Power BI tools, resources, and prompts to MCP clients (Cline, Continue, Claude).
-Includes all guardrails: RBAC, rate limit, audit, DLP, approval workflow.
 """
 
 from __future__ import annotations
@@ -30,6 +28,7 @@ from .guardrails import (
     extract_user_context,
 )
 from .validation import DAXValidator, ValidationResult
+from .prompt_validation import validated_prompt
 
 # Configure structured logging
 structlog.configure(
@@ -661,8 +660,13 @@ async def get_overview(workspace_id: str, dataset_id: str) -> str:
 
 
 @mcp.prompt()
+@validated_prompt
 async def review_measure(pr_number: int) -> str:
-    """Prompt to review a PR with a measure change."""
+    """Prompt to review a PR with a measure change.
+
+    Args:
+        pr_number: Pull request number (int). MUST be numeric; shell placeholders like '$1' are invalid.
+    """
     return f"""Please review PR #{pr_number} that proposes a new measure.
 
 Steps:
@@ -677,8 +681,13 @@ Use pbi_get_model_schema to understand the existing model context.
 
 
 @mcp.prompt()
+@validated_prompt
 async def explain_measure(measure_name: str) -> str:
-    """Prompt to explain what a measure does."""
+    """Prompt to explain what a measure does.
+
+    Args:
+        measure_name: Name of the measure (str). Must be non-empty.
+    """
     return f"""Explain the measure '{measure_name}' in plain language:
 
 1. Use pbi_get_model_schema to find the measure
