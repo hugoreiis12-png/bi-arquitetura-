@@ -80,7 +80,9 @@ export type RuleCondition =
   | { temFilhos: string }
   | { naoRelacionada: boolean }
   | { nomeDuplicadoNoModelo: boolean }
-  | { contagemFilhosMaiorQue: [string, number] };
+  | { contagemFilhosMaiorQue: [string, number] }
+  | { medidaComLookups: boolean };
+  
 
 /** Achado de uma regra violada */
 export interface Finding {

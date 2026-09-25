@@ -6,6 +6,8 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createServer } from "node:http";
 import { z } from "zod";
 import { tmdlAuditTool, handleTmdlAudit } from "./tmdl/tools.js";
 import { callGateway } from "./gateway/client.js";
@@ -662,8 +664,107 @@ server.tool(
 );
 
 // ---------------------------------------------------------------
-// Iniciar servidor
+// Iniciar servidor: stdio (default) ou Streamable HTTP (--http)
+// HTTP stateless: 1 transport por request (sem sessao), endpoint
+// canonico POST /mcp (sem slash; /mcp/ aceito sem redirect 307).
+// Env: DAX_MCP_HOST (default 0.0.0.0), DAX_MCP_PORT (default 8001).
 // ---------------------------------------------------------------
-const transport = new StdioServerTransport();
-await server.connect(transport);
-console.error("DAX Staff MCP Server v2 running on stdio");
+const cliArgs = process.argv.slice(2);
+
+if (cliArgs.includes("--http")) {
+  const HOST = process.env.DAX_MCP_HOST || "0.0.0.0";
+  const PORT = Number(process.env.DAX_MCP_PORT || "8001");
+  const MAX_BODY = 4 * 1024 * 1024;
+
+  const httpServer = createServer((req, res) => {
+    const pathname = new URL(req.url || "/", "http://localhost").pathname;
+    if (pathname !== "/mcp" && pathname !== "/mcp/") {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Not found. MCP endpoint: POST /mcp" }));
+      return;
+    }
+    if (req.method !== "POST") {
+      // Stateless: sem stream SSE persistente (GET/DELETE) — 405 explícito,
+      // nunca redirect, para o client não surfar erro genérico de transporte.
+      res.writeHead(405, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Method not allowed in stateless mode (use POST /mcp)" },
+        id: null
+      }));
+      return;
+    }
+
+    let raw = "";
+    let tooLarge = false;
+    req.on("data", (chunk: Buffer) => {
+      raw += chunk.toString("utf-8");
+      if (raw.length > MAX_BODY) {
+        tooLarge = true;
+        req.destroy();
+      }
+    });
+    req.on("end", async () => {
+      if (tooLarge) {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32000, message: "Request body too large (max 4MB)" },
+          id: null
+        }));
+        return;
+      }
+      let body: unknown;
+      try {
+        body = raw ? JSON.parse(raw) : undefined;
+      } catch {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32700, message: "Invalid JSON body" },
+          id: null
+        }));
+        return;
+      }
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on("close", () => { void transport.close(); });
+      try {
+        await server.connect(transport);
+      } catch (err) {
+        // Request concorrente ainda ocupando o server — cliente retrya.
+        console.error("dax-staff http: connect recusado (concorrencia):", err);
+        await transport.close();
+        if (!res.headersSent) {
+          res.writeHead(503, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32000, message: "Server busy, retry the request" },
+            id: (body as { id?: unknown } | undefined)?.id ?? null
+          }));
+        }
+        return;
+      }
+      try {
+        await transport.handleRequest(req, res, body);
+      } catch (err) {
+        console.error("dax-staff http: falha no handleRequest:", err);
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32603, message: "Internal error" },
+            id: (body as { id?: unknown } | undefined)?.id ?? null
+          }));
+        }
+      }
+    });
+  });
+
+  httpServer.listen(PORT, HOST, () => {
+    console.error(`DAX Staff MCP Server v2 on http://${HOST}:${PORT}/mcp (stateless)`);
+  });
+} else {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error("DAX Staff MCP Server v2 running on stdio");
+}

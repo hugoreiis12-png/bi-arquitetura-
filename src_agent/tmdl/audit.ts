@@ -190,7 +190,7 @@ export function avaliar(cond: RuleCondition, alvo: Target, conv: Conventions, in
     const alvoTxt = (node.expr ?? "").toUpperCase();
     const terms = (cond as { expressaoContem: string | string[] }).expressaoContem;
     const termsArr = Array.isArray(terms) ? terms : [terms];
-    return termsArr.some((s) => String(s).toUpperCase().includes(alvoTxt));
+    return termsArr.some((s) => alvoTxt.includes(String(s).toUpperCase()));
   }
 
   if ("expressaoLinhasMaiorQue" in cond) {
@@ -223,6 +223,13 @@ export function avaliar(cond: RuleCondition, alvo: Target, conv: Conventions, in
     const [tipo, limite] = (cond as { contagemFilhosMaiorQue: [string, number] }).contagemFilhosMaiorQue;
     return nodeKids(node, String(tipo).toLowerCase()).length > Number(limite);
   }
+
+   if ("medidaComLookups" in cond) {
+    const esperado = Boolean((cond as { medidaComLookups: boolean }).medidaComLookups);
+    const txt = (node.expr ?? "").toUpperCase();
+    const tem = /\bLOOKUPVALUE\s*\(/.test(txt) || /\bVALUES\s*\(/.test(txt);
+    return tem === esperado;
+   }
 
   throw new Error(`predicado desconhecido: ${Object.keys(cond)}`);
 }

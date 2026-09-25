@@ -148,19 +148,37 @@ def cmd_ask(args) -> int:
     try:
         import httpx
 
-        with httpx.Client(timeout=60) as client:
-            resp = client.post(
-                f"{mcp_url}/mcp/v1/tools/call",
-                json={
-                    "name": "pbi_search_dictionary",
-                    "arguments": {"query": args.question, "top_k": 3},
-                },
-                headers={"Authorization": f"Bearer {os.environ.get('BI_MCP_TOKEN', '')}"},
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                print(json.dumps(data, indent=2, ensure_ascii=False))
-                return 0
+        def sse_json(resp):
+            for line in resp.text.splitlines():
+                if line.startswith("data:"):
+                    return json.loads(line[5:].strip())
+            return json.loads(resp.text)
+
+        def mcp_call(url, method, params, rpc_id=1):
+            headers = {"Accept": "application/json, text/event-stream"}
+            with httpx.Client(timeout=60) as client:
+                client.post(f"{url}/mcp", json={
+                    "jsonrpc": "2.0", "id": rpc_id, "method": "initialize",
+                    "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                               "clientInfo": {"name": "bi-cli", "version": "1.0"}}},
+                    headers=headers).raise_for_status()
+                client.post(f"{url}/mcp",
+                    json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+                    headers=headers)
+                resp = client.post(f"{url}/mcp", json={
+                    "jsonrpc": "2.0", "id": rpc_id + 1,
+                    "method": method, "params": params}, headers=headers)
+                resp.raise_for_status()
+                return sse_json(resp)
+
+        data = mcp_call(
+            os.environ.get("BI_MCP_URL", "http://localhost:8001").rstrip("/"),
+            "tools/call",
+            {"name": "dax_search_dax_pattern",
+             "arguments": {"pattern_name": args.question}},
+        )
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        return 0
     except Exception as e:
         warn(f"MCP server not reachable: {e}")
         info("Tip: start the MCP server with `bi server start` or `powerbi-mcp --http`")

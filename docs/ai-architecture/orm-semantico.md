@@ -1,4 +1,4 @@
-# 🗂️ ORM Semântico · Power BI Tabular Model
+#  ORM Semântico · Power BI Tabular Model
 
 > SDK Python para manipular o modelo semântico do Power BI como se fosse ORM.
 > Wrapper sobre TOM (Tabular Object Model) + TMDL + XMLA + pbi-tools.

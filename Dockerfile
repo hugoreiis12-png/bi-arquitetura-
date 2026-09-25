@@ -1,5 +1,5 @@
 # bi-architecture — imagem única p/ Portainer
-# Serve: powerbi-mcp (HTTP :8000, endpoint MCP em /mcp/) + dax-staff (stdio) +
+# Serve: powerbi-mcp (HTTP :8000, endpoint MCP em /mcp) + dax-staff (stdio) +
 # tmdl-gateway (CLI) + pbi-tools. Workspace único via PBI_WORKSPACE_ID (env).
 # Pinned em bookworm (Debian 12): o repo APT da Microsoft baixado abaixo é
 # para debian/12. A tag "slim" flutuante passou a resolver p/ trixie (Debian 13)
@@ -67,9 +67,13 @@ COPY deploy ./deploy
 COPY tests ./tests
 COPY docs ./docs
 
-# MCP via HTTP em todas as interfaces (Portainer publica a 8000)
+# MCP via HTTP em todas as interfaces. O compose escolhe qual processo sobe
+# via `command:` (bi-mcp FastMCP :8000, dax-staff node --http :8001,
+# bi-gateway :8000); a imagem contém os 3.
 ENV MCP_HOST=0.0.0.0 MCP_PORT=8000
-EXPOSE 8000
+ENV DAX_MCP_HOST=0.0.0.0 DAX_MCP_PORT=8001
+ENV GATEWAY_HOST=0.0.0.0 GATEWAY_PORT=8000
+EXPOSE 8000 8001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import socket;socket.create_connection(('127.0.0.1',8000),timeout=5)"

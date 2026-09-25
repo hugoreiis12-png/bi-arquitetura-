@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     pbi_authority: str = "https://login.microsoftonline.com"
     pbi_api_base: str = "https://api.powerbi.com"
     pbi_scope: str = "https://analysis.windows.net/powerbi/api/.default"
+    pbi_xmla_server: str = Field(
+        default="",
+        description="Override do endpoint XMLA (default: derivado do workspace)",
+        validation_alias=AliasChoices("PBI_XMLA_SERVER", "XMLA_SERVER"),
+    )
 
     #  Workspace unico dinamico (por projeto conectado) + dataset base.
     #  O desvio dev/test/prod acontece so no commit, via sufixo por branch.
@@ -82,6 +87,13 @@ class Settings(BaseSettings):
             "prod": self.workspace_prod_id,
         }.get(self.environment, "")
         return fallback or self.workspace_playground_id
+
+    def resolve_xmla_server(self, workspace_id: str = "") -> str:
+        """XMLA override, ou derivado do workspace único."""
+        if self.pbi_xmla_server:
+            return self.pbi_xmla_server
+        ws = workspace_id or self.resolve_workspace_id()
+        return f"powerbi://api.powerbi.com/v1.0/myorg/{ws}"
 
     @staticmethod
     def dataset_for_branch(branch: str, base: str = "Vendas") -> str:
