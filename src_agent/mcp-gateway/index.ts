@@ -50,7 +50,7 @@ function exposedName(b: Backend, t: Tool): string {
 
 const server = new Server(
   { name: "bi-architecture-gateway", version: "1.0.0" },
-  { capabilities: { tools: {} } }
+  { capabilities: { tools: {}, prompts: {} } }
 );
 
 let backends: Backend[] = [];
