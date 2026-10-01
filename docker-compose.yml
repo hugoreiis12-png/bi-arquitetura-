@@ -12,9 +12,9 @@
 #     (NUNCA commite segredos: use o env do Portainer, não .env no repo.)
 #  3. Deploy the stack. Aguarde healthcheck `healthy` em bi-mcp.
 # HOST DESTE STACK: 192.168.0.160 (Portainer neste IP)
-# A porta 8000 do host já está ocupada por outro serviço: publicamos em 8001.
-# CONSUMO VIA MCP (clientes: opencode, Cline, Continue, Claude Desktop, VS Code):
-#  - ÚNICA URL pública (gateway único): http://192.168.0.160:8001/mcp  (Streamable HTTP, sem slash final)
+# A porta 8000 do host já está ocupada por outro serviço: publicamos em 8011.
+# CONSUMO VIA MCP (clientes: Cline, Continue, Claude Desktop, VS Code):
+#  - HTTP (rede):  http://192.168.0.160:8011/mcp  (gateway Streamable HTTP)
 #  - CLI no container:  docker exec -it bi-mcp tmdl-gateway pull-propose ...
 # ---------------------------------------------------------------------------
 name: bi-architecture
@@ -25,9 +25,6 @@ services:
     image: bi-architecture:latest
     container_name: bi-mcp
     restart: unless-stopped
-    ports:
-      # Interno ao stack; a URL pública passa a ser o gateway (:8001).
-      - "${PBI_MCP_HOST_PORT:-8011}:8000"
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-prod}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -56,6 +53,41 @@ services:
       start_period: 60s
       retries: 3
 
+  dax-staff:
+    image: bi-architecture:latest
+    container_name: bi-dax-staff
+    restart: unless-stopped
+    command: ["node", "/app/build/index.js", "--http"]
+    environment:
+      DAX_MCP_HOST: 0.0.0.0
+      DAX_MCP_PORT: 8001
+      PYTHON_BIN: python
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket;socket.create_connection(('127.0.0.1',8001),timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  bi-gateway:
+    image: bi-architecture:latest
+    container_name: bi-gateway
+    restart: unless-stopped
+    command: ["node", "/app/build/mcp-gateway/index.js"]
+    ports:
+      # Única porta MCP consumida pelo cliente externo.
+      - "${MCP_HOST_PORT:-8011}:8000"
+    environment:
+      DAX_BACKEND_URL: http://dax-staff:8001/mcp
+      PBI_BACKEND_URL: http://bi-mcp:8000/mcp
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: 8000
+    depends_on:
+      bi-mcp:
+        condition: service_healthy
+      dax-staff:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
     container_name: bi-redis
@@ -67,55 +99,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-
-  dax-staff:
-    build: .
-    image: bi-architecture:latest
-    container_name: bi-dax-staff
-    restart: unless-stopped
-    command: ["node", "build/index.js", "--http"]
-    expose:
-      - "8001"
-    environment:
-      DAX_MCP_HOST: 0.0.0.0
-      DAX_MCP_PORT: 8001
-      PYTHON_BIN: python
-    volumes:
-      # Trabalho versionado fora da imagem (opcional; comente p/ imagem imutável)
-      - ./src:/app/src
-      - bi-repos:/tmp/bi-repos
-    healthcheck:
-      test: ["CMD", "python", "-c", "import socket;socket.create_connection(('127.0.0.1',8001),timeout=5)"]
-      interval: 30s
-      timeout: 5s
-      start_period: 60s
-      retries: 3
-
-  bi-gateway:
-    build: .
-    image: bi-architecture:latest
-    container_name: bi-gateway
-    restart: unless-stopped
-    command: ["node", "build/mcp-gateway/index.js"]
-    ports:
-      # ÚNICA URL pública do ecossistema MCP: http://<host>:8001/mcp
-      - "${GATEWAY_HOST_PORT:-8001}:8000"
-    environment:
-      GATEWAY_HOST: 0.0.0.0
-      GATEWAY_PORT: 8000
-      DAX_BACKEND_URL: http://dax-staff:8001/mcp
-      PBI_BACKEND_URL: http://bi-mcp:8000/mcp
-    depends_on:
-      bi-mcp:
-        condition: service_healthy
-      dax-staff:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import socket;socket.create_connection(('127.0.0.1',8000),timeout=5)"]
-      interval: 30s
-      timeout: 5s
-      start_period: 90s
-      retries: 3
 
 volumes:
   bi-repos:

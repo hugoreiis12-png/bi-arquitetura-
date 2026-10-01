@@ -3,7 +3,7 @@
   "mcp": {
     "bi-architecture": {
       "type": "remote",
-      "url": "http://192.168.0.160:8001/mcp",
+      "url": "http://192.168.0.160:8011/mcp",
       "enabled": true,
       "timeout": 30000,
       "description": "Gateway MCP unificado (PowerBI MCP + DAX Staff). Credenciais ficam no container (.bi/credentials.json + docker-compose) — o cliente não precisa de env vars nem secrets locais."

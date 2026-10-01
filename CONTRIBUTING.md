@@ -107,14 +107,14 @@ main
 
 ### Regras
 
-| Branch | Origem | Merge em | Deploy |
-|--------|--------|-----------|--------|
-| `main` | — | — | Produção |
-| `develop` | `main` | `main` | Desenvolvimento |
-| `feat/*` | `develop` | `develop` | — |
-| `fix/*` | `develop` | `develop` | — |
-| `chore/*` | `develop` | `develop` | — |
-| `docs/*` | `develop` | `develop` | — |
+| Branch    | Origem    | Merge em  | Deploy          |
+| --------- | --------- | --------- | --------------- |
+| `main`    | —         | —         | Produção        |
+| `develop` | `main`    | `main`    | Desenvolvimento |
+| `feat/*`  | `develop` | `develop` | —               |
+| `fix/*`   | `develop` | `develop` | —               |
+| `chore/*` | `develop` | `develop` | —               |
+| `docs/*`  | `develop` | `develop` | —               |
 
 ### Criação de Branch
 
@@ -154,31 +154,31 @@ Utilizamos [Conventional Commits](https://www.conventionalcommits.org/).
 
 ### Tipos
 
-| Tipo | Descrição | Exemplo |
-|------|-----------|---------|
-| `feat` | Nova funcionalidade | `feat(vendas): adiciona medida Margem Líquida` |
-| `fix` | Correção de bug | `fix(dax): corrige divisão por zero em Ticket Médio` |
-| `docs` | Documentação | `docs(readme): adiciona seção de troubleshooting` |
-| `style` | Formatação (sem mudança de lógica) | `style(tmdl): organiza ordem das colunas` |
-| `refactor` | Refatoração sem mudança de comportamento | `refactor(orm): extrai classe BaseRepository` |
-| `test` | Adição/correção de testes | `test(dax): adiciona smoke test para Receita` |
-| `chore` | Tarefas de manutenção | `chore(deps): atualiza powerbi-orm para v0.4.1` |
-| `ci` | Mudanças na CI/CD | `ci(actions): adiciona job de validação TMDL` |
+| Tipo       | Descrição                                | Exemplo                                              |
+| ---------- | ---------------------------------------- | ---------------------------------------------------- |
+| `feat`     | Nova funcionalidade                      | `feat(vendas): adiciona medida Margem Líquida`       |
+| `fix`      | Correção de bug                          | `fix(dax): corrige divisão por zero em Ticket Médio` |
+| `docs`     | Documentação                             | `docs(readme): adiciona seção de troubleshooting`    |
+| `style`    | Formatação (sem mudança de lógica)       | `style(tmdl): organiza ordem das colunas`            |
+| `refactor` | Refatoração sem mudança de comportamento | `refactor(orm): extrai classe BaseRepository`        |
+| `test`     | Adição/correção de testes                | `test(dax): adiciona smoke test para Receita`        |
+| `chore`    | Tarefas de manutenção                    | `chore(deps): atualiza powerbi-orm para v0.4.1`      |
+| `ci`       | Mudanças na CI/CD                        | `ci(actions): adiciona job de validação TMDL`        |
 
 ### Escopos Comuns
 
-| Escopo | Área |
-|--------|------|
-| `vendas` | Modelo de vendas |
-| `estoque` | Modelo de estoque |
-| `rh` | Modelo de RH |
-| `dax` | Medidas e cálculos DAX |
-| `tmdl` | Definições de modelo |
-| `orm` | SDK Python ORM |
-| `mcp` | MCP Server |
-| `scripts` | Scripts de automação |
-| `ci` | Pipeline CI/CD |
-| `docs` | Documentação |
+| Escopo    | Área                   |
+| --------- | ---------------------- |
+| `vendas`  | Modelo de vendas       |
+| `estoque` | Modelo de estoque      |
+| `rh`      | Modelo de RH           |
+| `dax`     | Medidas e cálculos DAX |
+| `tmdl`    | Definições de modelo   |
+| `orm`     | SDK Python ORM         |
+| `mcp`     | MCP Server             |
+| `scripts` | Scripts de automação   |
+| `ci`      | Pipeline CI/CD         |
+| `docs`    | Documentação           |
 
 ### Exemplos
 
@@ -200,6 +200,7 @@ O repositório possui um PR template (`.github/PULL_REQUEST_TEMPLATE.md`). Preen
 ### Fluxo
 
 1. **Push sua branch**:
+
    ```bash
    git push origin feat/sua-feature
    ```
@@ -304,12 +305,12 @@ O repositório possui um PR template (`.github/PULL_REQUEST_TEMPLATE.md`). Preen
 
 ### Tipos de Teste
 
-| Tipo | Local | Como rodar |
-|------|-------|------------|
-| DAX smoke tests | `tests/dax/` | DAX Studio ou CI |
-| Unitários (Python) | `mcp/powerbi-mcp-server/tests/` | `pytest` |
-| Unitários (ORM) | `tools/orm/tests/` | `pytest` |
-| Integração | `tests/integration/` | `pytest -m integration` |
+| Tipo               | Local                           | Como rodar              |
+| ------------------ | ------------------------------- | ----------------------- |
+| DAX smoke tests    | `tests/dax/`                    | DAX Studio ou CI        |
+| Unitários (Python) | `mcp/powerbi-mcp-server/tests/` | `pytest`                |
+| Unitários (ORM)    | `tools/orm/tests/`              | `pytest`                |
+| Integração         | `tests/integration/`            | `pytest -m integration` |
 
 ### Rodando Testes Localmente
 

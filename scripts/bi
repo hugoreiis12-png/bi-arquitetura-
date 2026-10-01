@@ -146,42 +146,42 @@ def cmd_ask(args) -> int:
     mcp_url = os.environ.get("BI_MCP_URL", "http://localhost:8000")
 
     try:
-        import httpx
+         import httpx
 
-        def sse_json(resp):
+         def sse_json(resp):
             for line in resp.text.splitlines():
                 if line.startswith("data:"):
                     return json.loads(line[5:].strip())
-            return json.loads(resp.text)
+                return json.loads(resp.text)
 
-        def mcp_call(url, method, params, rpc_id=1):
+         def mcp_call(url, method, params, prc_id=1):
             headers = {"Accept": "application/json, text/event-stream"}
             with httpx.Client(timeout=60) as client:
-                client.post(f"{url}/mcp", json={
-                    "jsonrpc": "2.0", "id": rpc_id, "method": "initialize",
+               client.post(f"{url}/mcp", json={
+                 "jsonrpc": "2.0", "id": rpc_id, "method": "initialize",
                     "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                               "clientInfo": {"name": "bi-cli", "version": "1.0"}}},
+                               "clientInfo": {"name": "bi-cli", "version": "1.0"}}}, 
                     headers=headers).raise_for_status()
-                client.post(f"{url}/mcp",
-                    json={"jsonrpc": "2.0", "method": "notifications/initialized"},
-                    headers=headers)
-                resp = client.post(f"{url}/mcp", json={
-                    "jsonrpc": "2.0", "id": rpc_id + 1,
-                    "method": method, "params": params}, headers=headers)
-                resp.raise_for_status()
-                return sse_json(resp)
+               client.post(f"{url}/mcp",
+                           json={"jsonrpc": "2.0", "method": "notifications/initialize"},
+                           headers=headers)
+               resp = client.post(f"{url}/mcp", json{
+                   "jsonrpc": "2.0", "id": rpc_id + 1,
+                   "method": method, "params": params}, headers=headers)
+               resp.raise_for_status()
+               return sse_json(resp)
 
-        data = mcp_call(
-            os.environ.get("BI_MCP_URL", "http://localhost:8001").rstrip("/"),
+         data = mcp_call(
+            os.environ.get("BI_MCP_URL", "http://localhost:8011").rstrip("/"),
             "tools/call",
             {"name": "dax_search_dax_pattern",
              "arguments": {"pattern_name": args.question}},
         )
-        print(json.dumps(data, indent=2, ensure_ascii=False))
-        return 0
-    except Exception as e:
-        warn(f"MCP server not reachable: {e}")
-        info("Tip: start the MCP server with `bi server start` or `powerbi-mcp --http`")
+    print(json.dumps(data, indent=2, ensure_ascii=False))
+    return 0       
+               
+                
+
 
     # Fallback: just print the question and remind user
     print(f"{C.DIM}(Configure BI_MCP_URL to enable AI responses){C.END}")

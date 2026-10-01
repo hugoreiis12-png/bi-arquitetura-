@@ -1,9 +1,5 @@
-#!/usr/bin/env node
-// src_agent/mcp-gateway/index.ts — gateway MCP único (bi-architecture)
-// Expõe dax-staff + powerbi-mcp num só endpoint POST /mcp (sem slash;
-// /mcp/ aceito direto, sem redirect 307).
 // Backends via env: DAX_BACKEND_URL, PBI_BACKEND_URL.
-// Front via env: GATEWAY_HOST (default 0.0.0.0), GATEWAY_PORT (default 8000).
+// Front via env: GATEWAY_HOST (0.0.0.0), GATEWAY_PORT (8000).
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -12,12 +8,9 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
-  GetPromptRequestSchema,
   type Tool,
-  type Prompt,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "node:http";
-import { validatePromptArgs, coercePromptArgs } from "../gateway/prompt-validator.js";
 
 const DAX_URL = process.env.DAX_BACKEND_URL || "http://dax-staff:8001/mcp";
 const PBI_URL = process.env.PBI_BACKEND_URL || "http://bi-mcp:8000/mcp";
@@ -50,7 +43,7 @@ function exposedName(b: Backend, t: Tool): string {
 
 const server = new Server(
   { name: "bi-architecture-gateway", version: "1.0.0" },
-  { capabilities: { tools: {}, prompts: {} } }
+  { capabilities: { tools: {} } }
 );
 
 let backends: Backend[] = [];
@@ -86,54 +79,15 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const hit = backends
     .map((b) => ({ b, tool: b.tools.find((t) => exposedName(b, t) === name) }))
     .find((x) => x.tool);
-  if (!hit || !hit.tool) throw new Error(`tool desconhecida no gateway: ${name}`);
-  const toolName = hit.tool.name;
+  if (!hit) throw new Error(`tool desconhecida no gateway: ${name}`);
   const args = (req.params.arguments ?? {}) as Record<string, unknown>;
   try {
-    return await hit.b.client.callTool({ name: toolName, arguments: args });
+    return await hit.b.client.callTool({ name: hit.tool!.name, arguments: args });
   } catch (err) {
     // 1 retry com reconnect (backend pode ter reiniciado)
     console.error(`[gateway] retry ${name} após falha:`, err);
     await reconnect(hit.b, hit.b.prefix || "powerbi-mcp");
-    return await hit.b.client.callTool({ name: toolName, arguments: args });
-  }
-});
-
-// Novo: handler para prompts com validação de argumentos (mitiga erro '$1')
-server.setRequestHandler(GetPromptRequestSchema, async (req) => {
-  await ensureStarted();
-  const promptName = req.params.name;
-  const promptArgs = (req.params.arguments ?? {}) as Record<string, unknown>;
-
-  // Validar argumentos de prompt contra schema conhecido
-  const validation = validatePromptArgs(promptName, promptArgs);
-  if (!validation.valid) {
-    console.error(`[gateway] invalid prompt args para ${promptName}:`, validation.errors);
-    throw new Error(
-      `Argumentos inválidos para prompt '${promptName}': ${validation.errors.join("; ")}`
-    );
-  }
-
-  // Coercer argumentos (string numérica → int, etc.) — apenas para validação
-  // local; o protocolo MCP transporta argumentos de prompt sempre como
-  // string, então repassamos como string (o server Python faz a coerção
-  // de tipo real via @validated_prompt).
-  const coerced = coercePromptArgs(promptName, promptArgs);
-  const wireArgs: Record<string, string> = {};
-  for (const [key, value] of Object.entries(coerced)) {
-    wireArgs[key] = String(value);
-  }
-
-  // Rotear para backend correto (assume que prompts estão no PBI backend)
-  const backend = backends.find((b) => !b.prefix);
-  if (!backend) throw new Error("PBI backend não encontrado");
-
-  try {
-    return await backend.client.getPrompt({ name: promptName, arguments: wireArgs });
-  } catch (err) {
-    console.error(`[gateway] prompt falhou ${promptName}:`, err);
-    await reconnect(backend, "powerbi-mcp");
-    return await backend.client.getPrompt({ name: promptName, arguments: wireArgs });
+    return await hit.b.client.callTool({ name: hit.tool!.name, arguments: args });
   }
 });
 
