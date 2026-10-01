@@ -2,7 +2,7 @@
 
 Obrigado por contribuir! Este guia explica como participar do projeto de forma padronizada.
 
-## Índice
+## indi
 
 1. [Código de Conduta](#código-de-conduta)
 2. [Visão Geral do Fluxo](#visão-geral-do-fluxo)
