@@ -2,8 +2,19 @@
   "//": "MCP server configuration for VSCode (Cline/Continue).",
   "//": "Configure o cliente MCP que você usa. Suportados: Cline, Continue, Claude Desktop.",
   "//": "Veja: https://modelcontextprotocol.io/clients",
+  "//": "RECOMENDADO: use 'bi-gateway' (HTTP) — URL única que agrega dax-staff + powerbi-mcp.",
+  "//": "Entradas 'stdio' executam NO HOST DO CLIENTE: path UNC só funciona em Windows com SMB,",
+  "//": "e exigem Node + (p/ dax-staff) Python + repo gateway-py acessíveis nesse host.",
   "mcpServers": {
+    "bi-gateway": {
+      "//": "ÚNICA URL pública do ecossistema (Streamable HTTP, POST /mcp).",
+      "//": "A partir do próprio host Docker use http://localhost:8011/mcp.",
+      "//": "NÃO aponte para bi-mcp/dax-staff direto: sem porta publicada no host.",
+      "type": "http",
+      "url": "http://192.168.0.160:8011/mcp"
+    },
     "dax-staff-local": {
+      "//": "Somente se o cliente MCP roda em Windows com acesso SMB ao path abaixo.",
       "type": "stdio",
       "command": "node",
       "args": [

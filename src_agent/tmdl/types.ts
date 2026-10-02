@@ -23,7 +23,7 @@ export function createNode(
     description?: string | null;
     file?: string;
     line?: number;
-  }
+  },
 ): TmdlNode {
   return {
     kind,
@@ -38,7 +38,11 @@ export function createNode(
 }
 
 /** Obtém uma propriedade do nó (case-insensitive) */
-export function nodeProp(node: TmdlNode, key: string, defaultVal?: string): string | undefined {
+export function nodeProp(
+  node: TmdlNode,
+  key: string,
+  defaultVal?: string,
+): string | undefined {
   return node.props[key.toLowerCase()] ?? defaultVal;
 }
 
@@ -82,7 +86,6 @@ export type RuleCondition =
   | { nomeDuplicadoNoModelo: boolean }
   | { contagemFilhosMaiorQue: [string, number] }
   | { medidaComLookups: boolean };
-  
 
 /** Achado de uma regra violada */
 export interface Finding {

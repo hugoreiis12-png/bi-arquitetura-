@@ -160,7 +160,6 @@ export function avaliar(cond: RuleCondition, alvo: Target, conv: Conventions, in
   }
 
   if ("nomeCasaRegex" in cond) {
-    // rules.json vem do Python: prefixo (?i) = case-insensitive (invalido no JS).
     let pattern = (cond as { nomeCasaRegex: string }).nomeCasaRegex;
     let flags = "";
     if (pattern.startsWith("(?i)")) {
@@ -224,12 +223,12 @@ export function avaliar(cond: RuleCondition, alvo: Target, conv: Conventions, in
     return nodeKids(node, String(tipo).toLowerCase()).length > Number(limite);
   }
 
-   if ("medidaComLookups" in cond) {
+  if ("medidaComLookups" in cond) {
     const esperado = Boolean((cond as { medidaComLookups: boolean }).medidaComLookups);
     const txt = (node.expr ?? "").toUpperCase();
     const tem = /\bLOOKUPVALUE\s*\(/.test(txt) || /\bVALUES\s*\(/.test(txt);
     return tem === esperado;
-   }
+  }
 
   throw new Error(`predicado desconhecido: ${Object.keys(cond)}`);
 }

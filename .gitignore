@@ -88,6 +88,13 @@ yarn-error.log*
 yarn.lock
 
 # ============================================
+# Artefatos de build (TypeScript / npm)
+# ============================================
+build/
+dist/
+*.tgz
+
+# ============================================
 # Power BI Project (PBIP) — pastas geradas
 # ============================================
 # Na maioria dos casos o .Dataset inteiro é versionado.

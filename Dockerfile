@@ -1,6 +1,12 @@
 # bi-architecture — imagem única p/ Portainer
-# Serve: powerbi-mcp (HTTP :8000, endpoint MCP em /mcp) + dax-staff (stdio) +
+# Serve: powerbi-mcp (HTTP interno :8000, endpoint MCP em /mcp) +
+# dax-staff (HTTP interno :8001 via `node build/index.js --http`, ou stdio) +
+# bi-gateway (HTTP interno :8000, agrega os dois em POST /mcp) +
 # tmdl-gateway (CLI) + pbi-tools. Workspace único via PBI_WORKSPACE_ID (env).
+# PORTAS: internas (8000/8001) ≠ publicadas. A ÚNICA URL pública é a porta do
+# bi-gateway publicada no host (deploy atual: 8011 → http://<host>:8011/mcp).
+# bi-mcp e dax-staff não têm porta publicada: clientes MCP externos NUNCA
+# apontam para eles diretamente. Ver docker-compose.yml (bloco bi-gateway).
 # Pinned em bookworm (Debian 12): o repo APT da Microsoft baixado abaixo é
 # para debian/12. A tag "slim" flutuante passou a resolver p/ trixie (Debian 13)
 # e quebra a verificação GPG do repo da Microsoft (codinome incompatível).
