@@ -1,0 +1,38 @@
+# ============================================================
+# LibreChat — exemplo de MCP para o ecossistema bi-architecture
+# Copie os blocos `mcpSettings` e `mcpServers/bi-gateway` para o seu
+# librechat.yaml. Validado contra gateway v1.0.0 em 2026-10-02.
+# Docs LibreChat: https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/mcp_servers
+# ============================================================
+
+# Libera o host:porta privado do gateway (SSRF allowlist).
+# Sem esta entrada o LibreChat recusa conectar em IP de LAN.
+mcpSettings:
+  allowedAddresses:
+    - "192.168.0.160:8011"
+
+mcpServers:
+  # ÚNICA entrada necessária: o gateway agrega dax-staff (tools `dax_*`)
+  # + powerbi-mcp (tools `pbi_*`) num só endpoint Streamable HTTP.
+  bi-gateway:
+    type: streamable-http # OBRIGATÓRIO: `sse` faz GET /sse -> 404; aqui só existe POST /mcp
+    url: http://192.168.0.160:8011/mcp # sem slash final; /mcp/ também aceito
+    timeout: 120000 # tools agregam 2 backends; default (30s) estoura no cold-start
+    initTimeout: 30000
+
+  # ------------------------------------------------------------
+  # NÃO USAR como stdio a partir do host do LibreChat (registrado
+  # aqui só para documentar o porquê das falhas de conexão):
+  #
+  # dax-staff-local (stdio):
+  #   - o script precisa existir NO HOST do LibreChat; path UNC
+  #     (//192.168.0.250/...) não resolve em host Linux -> ENOENT
+  #   - exige `py` (launcher Windows) + repo gateway-py acessível
+  #     como cwd do processo filho
+  # powerbi-authoring-local (npx @microsoft/powerbi-modeling-mcp):
+  #   - cold-start baixa o pacote a cada boot; sem Power BI Desktop
+  #     no host do LibreChat, ListLocalInstances retorna vazio
+  # Se precisar das ops objeto-a-objeto do sidecar Microsoft contra o
+  # Desktop Windows, rode-o como stdio NUM host Windows com Desktop +
+  # Node, não no host do LibreChat.
+  # ------------------------------------------------------------

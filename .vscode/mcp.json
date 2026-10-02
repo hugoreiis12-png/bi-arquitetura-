@@ -2,8 +2,19 @@
   "//": "MCP server configuration for VSCode (Cline/Continue).",
   "//": "Configure o cliente MCP que você usa. Suportados: Cline, Continue, Claude Desktop.",
   "//": "Veja: https://modelcontextprotocol.io/clients",
+  "//": "RECOMENDADO: use 'bi-gateway' (HTTP) abaixo — URL única que agrega dax-staff + powerbi-mcp.",
+  "//": "O bloco 'powerbi' (stdio via imagem ACR) é LEGADO: imagem inexistente localmente e",
+  "//": "envs PBI_WORKSPACE_*_ID antigas (atual: PBI_WORKSPACE_ID único). Mantido só como referência.",
   "mcpServers": {
+    "bi-gateway": {
+      "//": "ÚNICA URL pública do ecossistema (Streamable HTTP, POST /mcp).",
+      "//": "A partir do próprio host Docker use http://localhost:8011/mcp.",
+      "//": "NÃO aponte para bi-mcp/dax-staff direto: sem porta publicada no host.",
+      "type": "http",
+      "url": "http://192.168.0.160:8011/mcp"
+    },
     "powerbi": {
+      "//": "⚠️ LEGADO — não usar. Ver aviso no topo do arquivo.",
       "command": "docker",
       "args": [
         "run",

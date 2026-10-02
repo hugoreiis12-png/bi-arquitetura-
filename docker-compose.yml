@@ -12,9 +12,14 @@
 #     (NUNCA commite segredos: use o env do Portainer, não .env no repo.)
 #  3. Deploy the stack. Aguarde healthcheck `healthy` em bi-mcp.
 # HOST DESTE STACK: 192.168.0.160 (Portainer neste IP)
-# A porta 8000 do host já está ocupada por outro serviço: publicamos em 8001.
-# CONSUMO VIA MCP (clientes: opencode, Cline, Continue, Claude Desktop, VS Code):
-#  - ÚNICA URL pública (gateway único): http://192.168.0.160:8001/mcp  (Streamable HTTP, sem slash final)
+# A porta 8000 do host já está ocupada por outro serviço: o gateway é publicado
+# em 8011 (GATEWAY_HOST_PORT=8011 no env do stack; default do compose seria 8001).
+# ATENÇÃO: a URL pública segue a porta PUBLICADA (8011), não a interna (8000).
+# CONSUMO VIA MCP (clientes: LibreChat, opencode, Cline, Continue, Claude Desktop, VS Code):
+#  - ÚNICA URL pública (gateway único, Streamable HTTP POST /mcp):
+#      http://192.168.0.160:8011/mcp  (localhost:8011 a partir do próprio host)
+#  - bi-mcp e dax-staff NÃO têm porta publicada (só `expose` interno): não aponte
+#    o cliente MCP direto para eles; use sempre o gateway acima.
 #  - CLI no container:  docker exec -it bi-mcp tmdl-gateway pull-propose ...
 # ---------------------------------------------------------------------------
 name: bi-architecture
@@ -98,7 +103,8 @@ services:
     restart: unless-stopped
     command: ["node", "build/mcp-gateway/index.js"]
     ports:
-      # ÚNICA URL pública do ecossistema MCP: http://<host>:8001/mcp
+      # ÚNICA URL pública do ecossistema MCP: http://<host>:${GATEWAY_HOST_PORT}/mcp
+      # (deploy atual: GATEWAY_HOST_PORT=8011 → http://<host>:8011/mcp)
       - "${GATEWAY_HOST_PORT:-8001}:8000"
     environment:
       GATEWAY_HOST: 0.0.0.0

@@ -60,5 +60,6 @@
   "extensions.supportUntrustedWorkspaces": {
     "TMDL.tmdl-tools": true,
     "dax-formatter.dax-formatter": true
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }
