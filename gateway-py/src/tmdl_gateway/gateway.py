@@ -256,41 +256,70 @@ class Gateway:
 
     # ---- DAX RUN local (localhost) ----
 
-    def dax_run_local(self, dataset_path: str) -> dict:
+    def dax_run_local(
+        self, dataset_path: str | None = None, connection: str | None = None
+    ) -> dict:
         """Valida+audit+compila e espelha no Desktop em memória (localhost).
 
-        Sem approval token (escopo local). Publica e salva localmente.
+        Instancia RANDOMICA: qualquer .pbip aberto, sem nome fixo. Sem
+        approval token (escopo local). Se `connection` for dado, usa direto;
+        senao auto-descobre via sidecar (1 instancia -> auto, N -> elicitation).
+        Se `dataset_path` for dado, valida o inventario TMDL local antes.
         """
         cfg = sidecar_mod.SidecarConfig.from_env()
-        found = sidecar_mod.list_local_instances(cfg)
-        instances = found.get("instances", [])
-        if isinstance(instances, dict):
-            instances = instances.get("value", []) or []
-        if not instances:
-            return {
-                "status": "aguardando_desktop",
-                "instances": [],
-                "instrucao": "Abra o Vendas.pbip no Power BI Desktop e rode DAX RUN de novo.",
-            }
-        if len(instances) > 1:
-            return {
-                "status": "escolha_instancia",
-                "instances": instances,
-                "instrucao": "Há 2+ instâncias; escolha (elicitation) qual porta conectar.",
-            }
-        definition = _definition_dir(dataset_path)
-        inv = _inventory_tmdl(definition)
-        highs = _fail_on_high(inv)
-        if highs:
-            raise GatewayError(f"fail_on_high: {highs}")
+        if connection:
+            conn = str(connection)
+            inst_info: dict = {"connection": conn, "database": "", "name": conn}
+        else:
+            found = sidecar_mod.list_local_instances(cfg)
+            instances = found.get("instances", [])
+            if isinstance(instances, dict):
+                instances = instances.get("value", []) or []
+            if not instances:
+                note = found.get("note", "")
+                return {
+                    "status": "aguardando_desktop",
+                    "instances": [],
+                    "error_kind": found.get("error_kind", "desktop_fechado"),
+                    "sidecar_tool": found.get("tool", ""),
+                    "note": note,
+                    "instrucao": "Abra qualquer .pbip no Power BI Desktop e rode DAX RUN de novo.",
+                }
+            if len(instances) > 1:
+                return {
+                    "status": "escolha_instancia",
+                    "instances": instances,
+                    "instrucao": "Ha 2+ instancias abertas; escolha (elicitation) qual connection usar e rode dax-run com --connection.",
+                }
+            inst = instances[0] if isinstance(instances, list) else instances
+            if isinstance(inst, dict):
+                conn = str(inst.get("connection") or inst.get("server") or inst)
+                inst_info = inst
+            else:
+                conn = str(inst)
+                inst_info = {"connection": conn, "database": "", "name": conn}
+            if not conn:
+                return {
+                    "status": "aguardando_desktop",
+                    "instances": instances,
+                    "error_kind": "instancia_sem_conexao",
+                    "instrucao": "Instancia sem connection string; reabra o .pbip no Desktop.",
+                }
+        inv: dict = {}
+        if dataset_path:
+            definition = _definition_dir(dataset_path)
+            inv = _inventory_tmdl(definition)
+            highs = _fail_on_high(inv)
+            if highs:
+                raise GatewayError(f"fail_on_high: {highs}")
         # Escrita local em transação (ou dry-run se sidecar ausente).
-        inst = instances[0] if isinstance(instances, list) else instances
-        conn = str(inst.get("connection", inst) if isinstance(inst, dict) else inst)
         tx = sidecar_mod.execute_in_transaction(conn, [{"Operation": "Validate"}], chunk_size=50, cfg=cfg)
         return {
             "status": "espelhado_local",
             "connection": conn,
+            "database": inst_info.get("database", ""),
+            "instancia": inst_info.get("name", conn),
             "inventario": inv,
             "transacao": tx,
-            "nota": "definition/ persistida; confira no Desktop e salve (Ctrl+S).",
+            "nota": "Modelo em memoria espelhado; confira no Desktop e salve (Ctrl+S).",
         }

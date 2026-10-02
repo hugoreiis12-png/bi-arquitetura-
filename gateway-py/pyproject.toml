@@ -5,7 +5,7 @@ description = "Gateway Python separado: versionamento Power BI so-TMDL (pull/com
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-dependencies = []
+dependencies = ["mcp>=1.0.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.2.0"]

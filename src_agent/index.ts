@@ -7,6 +7,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { createServer } from "node:http";
 import { z } from "zod";
 import { tmdlAuditTool, handleTmdlAudit } from "./tmdl/tools.js";
@@ -658,15 +659,23 @@ server.tool(
 
 server.tool(
   "dax_run_local",
-  "DAX RUN local: auto-detecta localhost:<porta>, valida+audit+compila, escreve no Desktop em memória em transação e persiste definition/ (sem approval token; Service continua via tmdl_commit)",
-  { dataset_path: z.string().describe("Pasta do dataset, ex: src/datasets/Vendas.Dataset") },
-  async ({ dataset_path }) => gwText(["dax-run", "--dataset-path", dataset_path])
+  "DAX RUN local: auto-detecta instancia aleatoria do Desktop (qualquer .pbip aberto, sem nome fixo). Com 1 instancia usa direto; com N devolve escolha; com 0 devolve aguardando_desktop. Opcional: passe connection (localhost:<porta>) para pular descoberta, e/ou dataset_path para validar inventario TMDL local (sem approval token; Service continua via tmdl_commit)",
+  {
+    dataset_path: z.string().optional().describe("Pasta do dataset, ex: src/datasets/Vendas.Dataset (opcional)"),
+    connection: z.string().optional().describe("Connection do sidecar, ex: localhost:<porta> (opcional; auto-descobre)")
+  },
+  async ({ dataset_path, connection }) => gwText([
+    "dax-run",
+    ...(dataset_path ? ["--dataset-path", dataset_path] : []),
+    ...(connection ? ["--connection", connection] : [])
+  ])
 );
 
 // ---------------------------------------------------------------
-// Iniciar servidor: stdio (default) ou Streamable HTTP (--http)
-// HTTP stateless: 1 transport por request (sem sessao), endpoint
-// canonico POST /mcp (sem slash; /mcp/ aceito sem redirect 307).
+// Iniciar servidor: stdio (default) ou HTTP (--http)
+// Canonico: POST /mcp (Streamable HTTP stateless, sem sessao).
+// Legado (compat Cline/Continue antigos): GET /sse + POST /messages
+// (SSE, 1 cliente por vez; sem feature nova — usar /mcp quando possivel).
 // Env: DAX_MCP_HOST (default 0.0.0.0), DAX_MCP_PORT (default 8001).
 // ---------------------------------------------------------------
 const cliArgs = process.argv.slice(2);
@@ -676,11 +685,68 @@ if (cliArgs.includes("--http")) {
   const PORT = Number(process.env.DAX_MCP_PORT || "8001");
   const MAX_BODY = 4 * 1024 * 1024;
 
+  // Sessoes SSE legadas (compat): sessionId -> transport persistente.
+  const sseSessions = new Map<string, SSEServerTransport>();
+
   const httpServer = createServer((req, res) => {
-    const pathname = new URL(req.url || "/", "http://localhost").pathname;
+    const url = new URL(req.url || "/", "http://localhost");
+    const pathname = url.pathname;
+
+    // ---- SSE legado (compat): GET /sse abre stream ----
+    if (pathname === "/sse" && req.method === "GET") {
+      (async () => {
+        const transport = new SSEServerTransport("/messages", res);
+        sseSessions.set(transport.sessionId, transport);
+        res.on("close", () => { sseSessions.delete(transport.sessionId); });
+        try {
+          await server.connect(transport);
+        } catch (err) {
+          sseSessions.delete(transport.sessionId);
+          console.error("dax-staff sse: connect recusado:", err);
+          if (!res.headersSent) {
+            res.writeHead(503, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Server busy, retry" }));
+          }
+        }
+      })();
+      return;
+    }
+
+    // ---- SSE legado (compat): POST /messages?sessionId=... ----
+    if (pathname === "/messages" && req.method === "POST") {
+      const sessionId = url.searchParams.get("sessionId") || "";
+      const transport = sseSessions.get(sessionId);
+      if (!transport) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "SSE session not found. GET /sse first." }));
+        return;
+      }
+      let raw = "";
+      req.on("data", (c: Buffer) => { raw += c.toString("utf-8"); });
+      req.on("end", async () => {
+        let body: unknown;
+        try { body = raw ? JSON.parse(raw) : undefined; }
+        catch {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+          return;
+        }
+        try {
+          await transport.handlePostMessage(req, res, body);
+        } catch (err) {
+          console.error("dax-staff sse: handlePostMessage:", err);
+          if (!res.headersSent) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Internal error" }));
+          }
+        }
+      });
+      return;
+    }
+
     if (pathname !== "/mcp" && pathname !== "/mcp/") {
       res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Not found. MCP endpoint: POST /mcp" }));
+      res.end(JSON.stringify({ error: "Not found. Endpoints: POST /mcp (canonico), GET /sse + POST /messages (legado compat)" }));
       return;
     }
     if (req.method !== "POST") {
@@ -761,7 +827,7 @@ if (cliArgs.includes("--http")) {
   });
 
   httpServer.listen(PORT, HOST, () => {
-    console.error(`DAX Staff MCP Server v2 on http://${HOST}:${PORT}/mcp (stateless)`);
+    console.error(`DAX Staff MCP Server v2 on http://${HOST}:${PORT}/mcp (stateless) + GET /sse legado compat`);
   });
 } else {
   const transport = new StdioServerTransport();

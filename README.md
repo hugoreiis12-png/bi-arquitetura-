@@ -447,17 +447,21 @@ bi server stop
 ### Configuração MCP no VS Code
 
 ```json
-// .vscode/mcp.json
+// .vscode/mcp.json (canonico: gateway Streamable HTTP; SSE so p/ clientes antigos)
 {
-  "servers": {
-    "powerbi-mcp": {
-      "command": "powerbi-mcp",
-      "args": ["--http", "--port", "8000"],
-      "env": {
-        "PBI_TENANT_ID": "${env:PBI_TENANT_ID}",
-        "PBI_SP_CLIENT_ID": "${env:PBI_SP_CLIENT_ID}",
-        "PBI_SP_CLIENT_SECRET": "${env:PBI_SP_CLIENT_SECRET}"
-      }
+  "mcpServers": {
+    "bi-architecture": {
+      "type": "http",
+      "url": "http://192.168.0.160:8011/mcp"
+    },
+    "bi-architecture-sse": {
+      "type": "sse",
+      "url": "http://192.168.0.160:8011/sse"
+    },
+    "powerbi-authoring-local": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@microsoft/powerbi-modeling-mcp@0.5.0-beta.13", "--start"]
     }
   }
 }

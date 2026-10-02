@@ -35,5 +35,5 @@ py -m tmdl_gateway.cli pull-propose --workspace "[DEV] Vendas" --dataset Vendas_
 py -m tmdl_gateway.cli pull-apply --proposal <id> --accept
 py -m tmdl_gateway.cli approval-request --action tmdl_commit --target "feat/x:Vendas_preview_x"
 py -m tmdl_gateway.cli commit --branch feat/x --message "feat(vendas): ..." --approval <token>
-py -m tmdl_gateway.cli dax-run --dataset-path src/datasets/Vendas.Dataset
+py -m tmdl_gateway.cli dax-run --connection "localhost:<porta>" [--dataset-path src/datasets/Qualquer.Dataset]
 ```

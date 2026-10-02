@@ -87,14 +87,18 @@ pip install -e .
 powerbi-mcp --http --port 8000
 ```
 
-Then in `.vscode/mcp.json`:
+Then in `.vscode/mcp.json` (canonico Streamable HTTP; SSE so para clientes antigos):
 
 ```json
 {
   "mcpServers": {
-    "powerbi": {
-      "url": "http://localhost:8000/sse",
-      "transport": "sse"
+    "bi-architecture": {
+      "type": "http",
+      "url": "http://192.168.0.160:8011/mcp"
+    },
+    "bi-architecture-sse": {
+      "type": "sse",
+      "url": "http://192.168.0.160:8011/sse"
     }
   }
 }

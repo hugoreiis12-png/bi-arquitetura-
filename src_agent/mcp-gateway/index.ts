@@ -3,6 +3,7 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
@@ -91,16 +92,72 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 });
 
-// ---- front HTTP stateless (mesmo contrato do dax-staff --http) ----
+// ---- front HTTP (canonico POST /mcp + SSE legado compat) ----
 const HOST = process.env.GATEWAY_HOST || "0.0.0.0";
 const PORT = Number(process.env.GATEWAY_PORT || "8000");
 const MAX_BODY = 4 * 1024 * 1024;
 
+// Sessoes SSE legadas (compat Cline/Continue antigos): 1 cliente por vez.
+const sseSessions = new Map<string, SSEServerTransport>();
+
 const httpServer = createServer((req, res) => {
-  const pathname = new URL(req.url || "/", "http://localhost").pathname;
+  const url = new URL(req.url || "/", "http://localhost");
+  const pathname = url.pathname;
+
+  // SSE legado: GET /sse abre stream persistente (fan-out p/ backends).
+  if (pathname === "/sse" && req.method === "GET") {
+    (async () => {
+      await ensureStarted();
+      const transport = new SSEServerTransport("/messages", res);
+      sseSessions.set(transport.sessionId, transport);
+      res.on("close", () => { sseSessions.delete(transport.sessionId); });
+      try {
+        await server.connect(transport);
+      } catch {
+        sseSessions.delete(transport.sessionId);
+        if (!res.headersSent) {
+          res.writeHead(503, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Server busy, retry" }));
+        }
+      }
+    })();
+    return;
+  }
+
+  // SSE legado: POST /messages?sessionId=...
+  if (pathname === "/messages" && req.method === "POST") {
+    const sessionId = url.searchParams.get("sessionId") || "";
+    const transport = sseSessions.get(sessionId);
+    if (!transport) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "SSE session not found. GET /sse first." }));
+      return;
+    }
+    let raw = "";
+    req.on("data", (c: Buffer) => { raw += c.toString("utf-8"); });
+    req.on("end", async () => {
+      let body: unknown;
+      try { body = raw ? JSON.parse(raw) : undefined; }
+      catch {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid JSON" }));
+        return;
+      }
+      try { await transport.handlePostMessage(req, res, body); }
+      catch (err) {
+        console.error("[gateway] sse handlePostMessage:", err);
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Internal error" }));
+        }
+      }
+    });
+    return;
+  }
+
   if (pathname !== "/mcp" && pathname !== "/mcp/") {
     res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not found. MCP endpoint: POST /mcp" }));
+    res.end(JSON.stringify({ error: "Not found. Endpoints: POST /mcp (canonico), GET /sse + POST /messages (legado compat)" }));
     return;
   }
   if (req.method !== "POST") {
@@ -155,5 +212,5 @@ const httpServer = createServer((req, res) => {
 
 await ensureStarted();
 httpServer.listen(PORT, HOST, () => {
-  console.error(`[gateway] bi-architecture em http://${HOST}:${PORT}/mcp`);
+  console.error(`[gateway] bi-architecture em http://${HOST}:${PORT}/mcp + GET /sse legado compat`);
 });

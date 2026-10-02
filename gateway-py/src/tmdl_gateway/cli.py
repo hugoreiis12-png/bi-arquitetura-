@@ -53,7 +53,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--create-pr", action="store_true")
 
     p = sub.add_parser("dax-run")
-    p.add_argument("--dataset-path", required=True)
+    p.add_argument("--dataset-path", required=False, default=None, help="Pasta do dataset (opcional; valida inventario local)")
+    p.add_argument("--connection", required=False, default=None, help="Connection do sidecar ex: localhost:<porta> (opcional; auto-descobre)")
 
     p = sub.add_parser("bulk-propose")
     p.add_argument("--workspace", required=True)
@@ -79,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "commit":
             return _out(gw.commit(args.branch, args.message, args.approval, args.target_dataset, args.create_pr))
         if args.cmd == "dax-run":
-            return _out(gw.dax_run_local(args.dataset_path))
+            return _out(gw.dax_run_local(args.dataset_path, args.connection))
         if args.cmd == "bulk-propose":
             return _out(gw.bulk_propose(args.workspace, args.dataset, json.loads(args.operations)))
         if args.cmd == "bulk-apply":
