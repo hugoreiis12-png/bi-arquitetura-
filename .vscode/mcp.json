@@ -7,7 +7,7 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "./build/index.js"
+        "//192.168.0.250/elton/_NIO/Atividade_do_dia/bi-ide-architecture/build/index.js"
       ],
       "env": {
         "PYTHON_BIN": "py",
