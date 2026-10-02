@@ -3,13 +3,16 @@
   "//": "Configure o cliente MCP que você usa. Suportados: Cline, Continue, Claude Desktop.",
   "//": "Veja: https://modelcontextprotocol.io/clients",
   "mcpServers": {
-    "bi-architecture": {
-      "type": "http",
-      "url": "http://192.168.0.160:8011/mcp"
-    },
-    "bi-architecture-sse": {
-      "type": "sse",
-      "url": "http://192.168.0.160:8011/sse"
+    "dax-staff-local": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "./build/index.js"
+      ],
+      "env": {
+        "PYTHON_BIN": "py",
+        "PBI_MODELING_MCP_ACCEPT_EULA": "true"
+      }
     },
     "powerbi-authoring-local": {
       "type": "stdio",
@@ -18,7 +21,10 @@
         "-y",
         "@microsoft/powerbi-modeling-mcp@0.5.0-beta.13",
         "--start"
-      ]
+      ],
+      "env": {
+        "PBI_MODELING_MCP_ACCEPT_EULA": "true"
+      }
     }
   }
 }
