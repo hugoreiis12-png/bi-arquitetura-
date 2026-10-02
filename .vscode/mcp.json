@@ -1,24 +1,25 @@
 {
-  "//": "MCP server configuration for VSCode (Cline/Continue).",
-  "//": "Configure o cliente MCP que você usa. Suportados: Cline, Continue, Claude Desktop.",
-  "//": "Veja: https://modelcontextprotocol.io/clients",
-  "//": "RECOMENDADO: use 'bi-gateway' (HTTP) — URL única que agrega dax-staff + powerbi-mcp.",
-  "//": "Entradas 'stdio' executam NO HOST DO CLIENTE: path UNC só funciona em Windows com SMB,",
-  "//": "e exigem Node + (p/ dax-staff) Python + repo gateway-py acessíveis nesse host.",
+  "//": "MCP — bi-ide-architecture: 3 servidores, 2 modos.",
+  "//": "HTTP (bi-gateway) roda no Docker e agrega 62 tools (15 dax_* + 47 pbi/orm_*).",
+  "//": "stdio roda NESTE host Windows: exige Node + build/ + (p/ dax) py + gateway-py; sidecar exige Desktop aberto.",
+  "//": "Portainer: troque localhost por http://<host>:8011/mcp (ex.: 192.168.0.160) quando o stack estiver lá.",
   "mcpServers": {
     "bi-gateway": {
-      "//": "ÚNICA URL pública do ecossistema (Streamable HTTP, POST /mcp).",
-      "//": "A partir do próprio host Docker use http://localhost:8011/mcp.",
-      "//": "NÃO aponte para bi-mcp/dax-staff direto: sem porta publicada no host.",
+      "//": "Gateway único — Streamable HTTP, POST /mcp. Preferir localhost neste PC; IP só p/ rede/Portainer.",
+      "type": "http",
+      "url": "http://localhost:8011/mcp"
+    },
+    "bi-gateway-portainer": {
+      "//": "Mesmo gateway quando publicado no Portainer. Habilite após o deploy do stack.",
       "type": "http",
       "url": "http://192.168.0.160:8011/mcp"
     },
     "dax-staff-local": {
-      "//": "Somente se o cliente MCP roda em Windows com acesso SMB ao path abaixo.",
+      "//": "15 tools locais: validate_dax, generate_* (tema/SVG/HTML/Deneb), tmdl_* gateado, bulk, dax_run_local.",
       "type": "stdio",
       "command": "node",
       "args": [
-        "//192.168.0.250/elton/_NIO/Atividade_do_dia/bi-ide-architecture/build/index.js"
+        "C:\\Users\\JFC\\Desktop\\bi-ide-architecture\\build\\index.js"
       ],
       "env": {
         "PYTHON_BIN": "py",
@@ -26,6 +27,7 @@
       }
     },
     "powerbi-authoring-local": {
+      "//": "Sidecar oficial Microsoft — TOM direto no Desktop (qualquer .pbip aberto). Sem Desktop responde vazio.",
       "type": "stdio",
       "command": "npx",
       "args": [
